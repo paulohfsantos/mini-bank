@@ -1,0 +1,49 @@
+{
+  "name": "mini-banco",
+  "private": true,
+  "description": "Laboratório Full Stack + AWS + Spec-Driven Development",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "jest --passWithNoTests",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "infra:up": "docker compose up -d --wait",
+    "infra:check": "./scripts/check-local-infra.sh",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d --wait"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{json,yaml,yml}": "prettier --write"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@eslint/js": "^10.0.1",
+    "@mini-banco/config": "workspace:*",
+    "@swc/core": "^1.16.22",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "^10.15.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.14.0",
+    "husky": "^9.1.7",
+    "jest": "^30.5.2",
+    "lint-staged": "^17.6.1",
+    "prettier": "^3.10.1",
+    "typescript": "catalog:",
+    "typescript-eslint": "^8.73.0"
+  }
+}

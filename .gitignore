@@ -1,0 +1,36 @@
+# dependências
+node_modules/
+
+# builds
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# testes
+coverage/
+
+# ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+*.auto.tfvars.json
+override.tf
+override.tf.json
+
+# sistema / editores
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+
+# claude code (configurações locais)
+.claude/settings.local.json

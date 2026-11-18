@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply chain (SEC-32): scripts de instalação de dependências ficam bloqueados por padrão.
+# Só os pacotes listados aqui podem rodar build scripts; qualquer novo pedido exige revisão.
+allowBuilds:
+  '@swc/core': true
+  # Usado pelo jest-haste-map; os binários pré-compilados vêm como optionalDependencies.
+  # O script de build só compila do fonte como fallback, então fica negado.
+  '@parcel/watcher': false
+
+# Supply chain (SEC-32): não instala versões publicadas há menos de 1 dia (em minutos).
+# Dá tempo para que pacotes comprometidos sejam detectados e despublicados.
+minimumReleaseAge: 1440
+
+# Versões compartilhadas entre os pacotes (referenciadas como "catalog:").
+# TypeScript fica em 6.0.x: o typescript-eslint ainda não suporta o TypeScript 7 (port em Go).
+catalog:
+  typescript: 6.0.3
+  '@types/node': ^26.0.0
+  '@types/jest': ^30.0.0

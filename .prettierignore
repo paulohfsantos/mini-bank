@@ -1,0 +1,9 @@
+node_modules
+dist
+.next
+coverage
+pnpm-lock.yaml
+
+# Markdown (docs, specs, ADRs) é formatado à mão: tabelas largas e diagramas Mermaid
+# ficam ilegíveis com reformatação automática.
+**/*.md

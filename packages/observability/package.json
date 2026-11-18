@@ -1,0 +1,15 @@
+{
+  "name": "@mini-banco/observability",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Logger pino, correlationId (AsyncLocalStorage) e bootstrap OpenTelemetry — fases 2 e 5",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@mini-banco/config": "workspace:*",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,42 @@
+# Infraestrutura local: todo o fluxo roda sem conta AWS.
+# Subir: pnpm infra:up  |  Verificar: pnpm infra:check  |  Derrubar: pnpm infra:down  |  Zerar: pnpm infra:reset
+name: mini-banco
+
+services:
+  postgres:
+    # Versão principal igual à usada no RDS (conferir as versões suportadas pelo RDS ao subir a AWS).
+    image: postgres:17.12-alpine
+    environment:
+      POSTGRES_DB: minibanco
+      POSTGRES_USER: minibanco
+      POSTGRES_PASSWORD: minibanco-local # só local; na AWS a senha vem do Secrets Manager
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U minibanco -d minibanco']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sqs:
+    # ElasticMQ: SQS compatível, sem conta nem token (ADR-0022). Filas e DLQ vêm do arquivo de config.
+    # A imagem nativa não tem curl/wget, então a prontidão é verificada do host (pnpm infra:check).
+    image: softwaremill/elasticmq-native:1.7.1
+    ports:
+      - '9324:9324' # API SQS
+      - '9325:9325' # UI/estatísticas
+    volumes:
+      - ./infra/local/elasticmq.conf:/opt/elasticmq.conf:ro
+
+  jaeger:
+    # Jaeger v2 (all-in-one): UI em :16686, recebe OTLP em :4317 (gRPC) e :4318 (HTTP).
+    image: jaegertracing/jaeger:2.23.0
+    ports:
+      - '16686:16686'
+      - '4317:4317'
+      - '4318:4318'
+
+volumes:
+  postgres-data:

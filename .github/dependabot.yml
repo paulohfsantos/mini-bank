@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: npm # cobre pnpm (pnpm-lock.yaml)
+    directory: /
+    schedule:
+      interval: weekly
+    # Cooldown (SEC-32): só propõe versões publicadas há alguns dias.
+    cooldown:
+      default-days: 3
+    groups:
+      dev-tooling:
+        dependency-type: development
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly

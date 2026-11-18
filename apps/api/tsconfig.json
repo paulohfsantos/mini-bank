@@ -1,0 +1,9 @@
+{
+  "extends": "@mini-banco/config/tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "types": ["node", "jest"]
+  },
+  "include": ["src", "test"]
+}

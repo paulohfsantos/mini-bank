@@ -1,0 +1,15 @@
+{
+  "name": "@mini-banco/database",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pool pg, UnitOfWork, parsers de tipo e helpers de transação — fase 2",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@mini-banco/config": "workspace:*",
+    "@types/jest": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
