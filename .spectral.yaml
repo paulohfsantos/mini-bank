@@ -1,0 +1,57 @@
+# Lint do contrato REST (specs/openapi.yaml). Rodar: pnpm specs:lint
+extends:
+  - spectral:oas
+
+rules:
+  # Toda operação precisa de operationId, summary e tag (geração de tipos e Swagger legível).
+  operation-operationId: error
+  operation-tags: error
+  operation-description: off
+  # Projeto de laboratório, sem contato público.
+  info-contact: off
+
+  # Erros 4xx/5xx sempre em application/problem+json com o schema Problem (RFC 9457).
+  # Exceção: /health/* devolve o schema Health também no 503 (consumido pelo ALB).
+  mini-banco-errors-are-problem-json:
+    description: Respostas de erro devem usar application/problem+json.
+    severity: error
+    given: "$.paths[?(!@property.startsWith('/health/'))][*].responses[?(@property.match(/^[45]/))]"
+    then:
+      field: content
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: ['application/problem+json']
+
+  # Dinheiro sempre inteiro: propriedades terminadas em Cents precisam ser integer.
+  mini-banco-cents-are-integers:
+    description: Campos *Cents devem ser type integer (centavos, nunca decimal).
+    severity: error
+    given: '$..properties[?(@property.match(/Cents$/))]'
+    then:
+      field: type
+      function: enumeration
+      functionOptions:
+        values: [integer]
+
+  # Corpos de requisição rejeitam campos desconhecidos.
+  mini-banco-request-bodies-closed:
+    description: Schemas de request body devem ter additionalProperties false.
+    severity: error
+    given: '$.components.schemas[?(@property.match(/Request$/))]'
+    then:
+      # "defined" pega a ausência do campo; "falsy" pega additionalProperties: true.
+      - field: additionalProperties
+        function: defined
+      - field: additionalProperties
+        function: falsy
+
+  # Toda resposta 2xx com corpo tem pelo menos um exemplo (usados nos testes de contrato).
+  mini-banco-success-has-example:
+    description: Respostas 2xx com JSON devem ter examples.
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^2/))].content['application/json']"
+    then:
+      field: examples
+      function: truthy

@@ -39,10 +39,17 @@ pnpm lint | lint:fix
 pnpm format | format:check
 pnpm typecheck               # tsc --noEmit em cada pacote
 pnpm test                    # jest (swc) em todo o monorepo
-pnpm check                   # lint + format:check + typecheck + test (rode antes de concluir)
+pnpm specs:lint             # Spectral no openapi.yaml (falha em warn)
+pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=ACC,TRF torna obrigatório
+pnpm contracts:generate     # regenera packages/contracts/src/generated/openapi.ts após mudar o openapi.yaml
+pnpm contracts:check        # falha se os tipos gerados estiverem desatualizados
+pnpm specs:check            # specs:lint + contracts:check + specs:coverage
+pnpm check                  # lint + format:check + typecheck + test + specs:check (rode antes de concluir)
 ```
 
-Ainda não existem (chegam nas fases 1–3): `pnpm specs:coverage`, `pnpm db:migrate`, `pnpm test:integration`, `pnpm test:e2e`, `pnpm dev`.
+Ainda não existem (chegam nas fases 2–3): `pnpm db:migrate`, `pnpm test:integration`, `pnpm test:e2e`, `pnpm dev`.
+
+Mudou o `openapi.yaml`? Rode `pnpm contracts:generate` e ajuste o zod em `packages/contracts/src/schemas/`; `contract-alignment.ts` quebra o typecheck se os dois divergirem.
 
 ## Fluxo SDD (obrigatório)
 
@@ -69,7 +76,7 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 ### TypeScript
 - `strict` + `noUncheckedIndexedAccess`. Proibido `any` (use `unknown` + validação). Proibido `console` (use o logger).
 - TypeScript fixado em **6.0.x** via catálogo do pnpm (`pnpm-workspace.yaml`): o typescript-eslint ainda não suporta TS 7. Não atualize sem checar o peer range.
-- Imports relativos com extensão `.js` (NodeNext). Apps e pacotes Node são CommonJS.
+- Imports relativos **sem extensão** (`from './cpf'`, nunca `'./cpf.js'`; lint `no-restricted-imports`). Apps e pacotes Node são CommonJS, onde NodeNext resolve sem extensão.
 - Promises sempre aguardadas (`no-floating-promises`); `void` explícito só com justificativa.
 
 ### Dinheiro
@@ -128,5 +135,6 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 
 ## Estado atual
 
-- **Fase 0 (fundação) concluída.** Próxima: fase 1 (specs e contratos).
+- **Fases 0 (fundação) e 1 (specs e contratos) concluídas.** Próxima: fase 2 (API de contas e transferências).
+- Divergências intencionais entre `openapi.yaml` e zod (dígito verificador do CPF, trim do nome) estão listadas em `packages/contracts/src/contract.spec.ts`; nova divergência entra lá e na spec.
 - SQS local é **ElasticMQ** (`:9324`), não LocalStack (ADR-0022). O endpoint vem de `AWS_ENDPOINT_URL`; na AWS a variável não existe e o SDK usa o SQS real.

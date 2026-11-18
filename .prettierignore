@@ -4,6 +4,9 @@ dist
 coverage
 pnpm-lock.yaml
 
+# Código gerado (pnpm contracts:generate); o --check compara byte a byte.
+packages/contracts/src/generated
+
 # Markdown (docs, specs, ADRs) é formatado à mão: tabelas largas e diagramas Mermaid
 # ficam ilegíveis com reformatação automática.
 **/*.md

@@ -14,7 +14,12 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r --parallel typecheck",
     "test": "jest --passWithNoTests",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm specs:check",
+    "specs:lint": "spectral lint specs/openapi.yaml --fail-severity=warn",
+    "specs:coverage": "node scripts/specs-coverage.mjs",
+    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage",
+    "contracts:generate": "pnpm --filter @mini-banco/contracts generate",
+    "contracts:check": "pnpm --filter @mini-banco/contracts generate:check",
     "infra:up": "docker compose up -d --wait",
     "infra:check": "./scripts/check-local-infra.sh",
     "infra:down": "docker compose down",
@@ -22,7 +27,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
-      "eslint --fix --max-warnings=0",
+      "eslint --fix --max-warnings=0 --no-warn-ignored",
       "prettier --write"
     ],
     "*.{json,yaml,yml}": "prettier --write"
@@ -32,6 +37,7 @@
     "@commitlint/config-conventional": "^21.2.4",
     "@eslint/js": "^10.0.1",
     "@mini-banco/config": "workspace:*",
+    "@stoplight/spectral-cli": "^6.17.1",
     "@swc/core": "^1.16.22",
     "@swc/jest": "^0.2.39",
     "@types/jest": "catalog:",

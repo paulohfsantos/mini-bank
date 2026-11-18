@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mini-banco.dev/schemas/events/transfer.completed.v1.json",
+  "title": "transfer.completed v1",
+  "description": "Emitido via outbox após o commit de uma transferência (specs/transfer-processing/spec.md). Entrega at-least-once: consumidores deduplicam por eventId. Evolução aditiva: consumidores ignoram campos desconhecidos, por isso o envelope não usa additionalProperties: false. Message attributes SQS: eventType, correlationId, traceparent (opcional). Nunca contém CPF ou nome (SEC-21).",
+  "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "correlationId", "data"],
+  "properties": {
+    "eventId": {
+      "description": "Identificador único do evento (UUIDv7); chave de idempotência do consumidor.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "transfer.completed"
+    },
+    "eventVersion": {
+      "const": 1
+    },
+    "occurredAt": {
+      "description": "Quando o evento foi gravado no outbox (ISO 8601 UTC).",
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlationId": {
+      "description": "Correlation ID da requisição HTTP que originou a transferência.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9-]{1,64}$"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "transferId",
+        "sourceAccountId",
+        "destinationAccountId",
+        "amountCents",
+        "completedAt"
+      ],
+      "properties": {
+        "transferId": { "type": "string", "format": "uuid" },
+        "sourceAccountId": { "type": "string", "format": "uuid" },
+        "destinationAccountId": { "type": "string", "format": "uuid" },
+        "amountCents": {
+          "description": "Valor em centavos inteiros (TRF-BR-01).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "completedAt": {
+          "description": "Instante da transferência (transfers.created_at). Base da janela da regra HIGH_VELOCITY (PRC-BR-05).",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "eventId": "0193a1b2-7c4d-7e5f-8a6b-1c2d3e4f5a6b",
+      "eventType": "transfer.completed",
+      "eventVersion": 1,
+      "occurredAt": "2026-11-18T14:03:21.512Z",
+      "correlationId": "c-123",
+      "data": {
+        "transferId": "0193a1b2-7c4d-7e5f-8a6b-000000000001",
+        "sourceAccountId": "0193a1b2-7c4d-7e5f-8a6b-0000000000aa",
+        "destinationAccountId": "0193a1b2-7c4d-7e5f-8a6b-0000000000bb",
+        "amountCents": 15000,
+        "completedAt": "2026-11-18T14:03:21.498Z"
+      }
+    }
+  ]
+}

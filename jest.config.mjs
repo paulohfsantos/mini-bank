@@ -20,8 +20,4 @@ export default {
       },
     ],
   },
-  // Imports NodeNext usam extensão `.js` apontando para arquivos `.ts`.
-  moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-  },
 };

@@ -9,6 +9,8 @@ allowBuilds:
   # Usado pelo jest-haste-map; os binários pré-compilados vêm como optionalDependencies.
   # O script de build só compila do fonte como fallback, então fica negado.
   '@parcel/watcher': false
+  # Dependência do Spectral cujo postinstall só envia telemetria de instalação. Negado.
+  '@scarf/scarf': false
 
 # Supply chain (SEC-32): não instala versões publicadas há menos de 1 dia (em minutos).
 # Dá tempo para que pacotes comprometidos sejam detectados e despublicados.
@@ -20,3 +22,9 @@ catalog:
   typescript: 6.0.3
   '@types/node': ^26.0.0
   '@types/jest': ^30.0.0
+
+# openapi-typescript declara peer typescript ^5.x, mas gera corretamente com 6.0
+# (verificado na fase 1). Revisar ao atualizar qualquer um dos dois.
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: '6'

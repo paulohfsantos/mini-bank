@@ -14,6 +14,7 @@ export default defineConfig(
     '**/.next/**',
     '**/coverage/**',
     '**/.terraform/**',
+    '**/src/generated/**',
   ]),
 
   js.configs.recommended,
@@ -39,6 +40,18 @@ export default defineConfig(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      // Imports relativos sem extensão: os pacotes são CommonJS, onde NodeNext resolve sem `.js`.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^\\.{1,2}/.*\\.js$',
+              message: 'Import relativo sem extensão (convenção do projeto).',
+            },
+          ],
+        },
+      ],
     },
   },
 
@@ -46,6 +59,12 @@ export default defineConfig(
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // Scripts de linha de comando escrevem no terminal por definição.
+  {
+    files: ['scripts/**/*.{js,mjs}'],
+    rules: { 'no-console': 'off' },
   },
 
   // Testes podem usar asserções mais soltas.

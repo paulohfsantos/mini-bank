@@ -46,3 +46,8 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # SDD: contrato válido, tipos gerados em dia, IDs de AC citados nos testes existem.
+      # Na fase 2 passa a usar --require=ACC,TRF,STM (todos os níveis de teste obrigatórios).
+      - name: Specs
+        run: pnpm specs:check

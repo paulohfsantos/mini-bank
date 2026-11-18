@@ -52,64 +52,27 @@ Convenções usadas em todas as fases:
 **Objetivo:** especificar todo o comportamento antes do código, com ACs testáveis e IDs estáveis.
 
 **Tarefas**
-- [ ] `specs/accounts/spec.md`, com regras `ACC-BR-01` (CPF válido, 11 dígitos e dígitos verificadores), `ACC-BR-02` (saldo inicial inteiro ≥ 0), `ACC-BR-03` (saldo inicial ≤ 10.000.000 centavos; `SEC-05`) e `ACC-BR-04` (`holderName` com 1–120 caracteres, normalizado em NFC, sem caracteres de controle; `SEC-15`) e os critérios:
-  - `ACC-AC-01` Dado payload válido, quando `POST /v1/accounts`, então 201, `balanceCents` = saldo inicial e um `ledger_entries` `OPENING`
-  - `ACC-AC-02` documento já cadastrado → 409 `DOCUMENT_ALREADY_REGISTERED` (o oráculo de enumeração de CPF fica registrado como débito, `SEC-04`)
-  - `ACC-AC-03` saldo inicial negativo, decimal, string ou acima do teto → 400
-  - `ACC-AC-04` CPF inválido → 400 `INVALID_DOCUMENT`
-  - `ACC-AC-05` `GET /v1/accounts/{id}` existente → 200 com saldo atual
-  - `ACC-AC-06` conta inexistente → 404 `ACCOUNT_NOT_FOUND`
-  - `ACC-AC-07` sem `x-api-key` ou key inválida → 401
-  - `ACC-AC-08` body acima de 16 KB → 413; campos desconhecidos → 400 (`additionalProperties: false`)
-- [ ] `specs/transfers/spec.md`:
-  - `TRF-AC-01` transferência válida → 201 `COMPLETED`, saldos debitado e creditado
-  - `TRF-AC-02` saldo insuficiente → 422 `INSUFFICIENT_FUNDS`, nenhuma linha alterada
-  - `TRF-AC-03` sem `Idempotency-Key` → 400 `IDEMPOTENCY_KEY_REQUIRED`
-  - `TRF-AC-04` mesma chave e mesmo payload → mesma resposta (status e body), header `Idempotent-Replayed: true`, uma única transferência
-  - `TRF-AC-05` mesma chave e payload diferente → 422 `IDEMPOTENCY_KEY_REUSED`
-  - `TRF-AC-06` mesma chave em **paralelo** → exatamente uma transferência; ambas as respostas iguais
-  - `TRF-AC-07` N transferências concorrentes da mesma origem cuja soma excede o saldo → saldo nunca negativo; sucessos × valor = débito total
-  - `TRF-AC-08` origem igual ao destino → 400 `SAME_ACCOUNT`
-  - `TRF-AC-09` conta de origem ou destino inexistente → 404
-  - `TRF-AC-10` `amountCents` ≤ 0, não inteiro ou acima de 100.000.000 → 400 (`SEC-06`)
-  - `TRF-AC-11` falha após o débito (simulada) → rollback completo, sem linha em `outbox`
-  - `TRF-AC-12` `x-correlation-id` válido (UUID ou até 64 chars `[A-Za-z0-9-]`) é devolvido e gravado em `transfers` e `outbox`; ausente ou inválido → gerado um novo (`SEC-12`)
-  - `TRF-AC-13` rajada de requisições com a mesma chave enquanto a original segura o lock além do `lock_timeout` → 409 `REQUEST_IN_PROGRESS` com `Retry-After`; nunca uma segunda transferência (`PERF-07`)
-  - `TRF-AC-14` conta de origem com lock disputado além do `lock_timeout` → 503 `ACCOUNT_BUSY` com `Retry-After`, nada alterado (`PERF-06`)
-  - `TRF-AC-15` transferências A→B e B→A em paralelo terminam sem deadlock (`PERF-08`)
-  - `TRF-AC-16` `Idempotency-Key` com mais de 64 caracteres → 400 (`SEC-10`)
-  - NFR: `TRF-NFR-01` p95 < 300 ms local com 20 req/s; `TRF-NFR-02` chaves de idempotência expiram em 24 h e são apagadas por job; `TRF-NFR-03` nenhuma transação de escrita segura locks por mais de 2 s (`lock_timeout`) ou executa por mais de 5 s (`statement_timeout`)
-- [ ] `specs/statement/spec.md`:
-  - `STM-AC-01` lançamentos em ordem decrescente de `created_at`, `id`
-  - `STM-AC-02` `limit` padrão 20, máximo 100; `nextCursor` nulo na última página
-  - `STM-AC-03` cursor malformado → 400 `INVALID_CURSOR`
-  - `STM-AC-04` conta inexistente → 404
-  - `STM-AC-05` lançamentos já commitados quando a primeira página foi lida aparecem exatamente uma vez ao percorrer todas as páginas, mesmo com novos lançamentos chegando. Lançamentos commitados depois com `created_at` anterior à posição do cursor podem não aparecer nessa paginação, o que é uma limitação documentada do keyset sobre timestamps de transação (`PERF-14`)
-- [ ] `specs/transfer-processing/spec.md` (outbox + worker):
-  - `OBX-AC-01` evento publicado em até 5 s após o commit (ambiente local)
-  - `OBX-AC-02` SQS indisponível → linha continua pendente, `attempts` incrementa e o evento é publicado quando a fila volta
-  - `OBX-AC-03` duas instâncias do relay não publicam a mesma linha ao mesmo tempo
-  - `OBX-AC-04` SQS lento (simulado com atraso de 10 s) não mantém transação aberta nem lock em `outbox`; a API continua respondendo dentro do `TRF-NFR-01` (`PERF-04`)
-  - `OBX-AC-05` relay que cai depois do claim e antes do envio → a linha volta a ser publicada após `claimed_until` expirar
-  - `PRC-AC-01` evento válido abaixo dos limites → `fraud_reviews` `CLEARED` + 2 `notifications`
-  - `PRC-AC-02` valor ≥ 1.000.000 centavos → `FLAGGED` com reason `HIGH_AMOUNT`
-  - `PRC-AC-03` 5ª transferência da mesma origem na janela `[completedAt - 10min, completedAt]` → `FLAGGED` com `HIGH_VELOCITY`; o resultado é o mesmo se o evento for processado com 1 h de atraso (`PERF-20`)
-  - `PRC-AC-08` evento válido no schema, mas cuja transferência não existe em `transfers` (ou com valor/contas divergentes) → nenhum efeito, log `ERROR` de segurança, mensagem vai para a DLQ (`SEC-14`)
-  - `PRC-AC-04` mesmo evento entregue duas vezes → efeitos aplicados uma vez
-  - `PRC-AC-05` mensagem que não valida no schema → não processada, log `ERROR`, chega à DLQ após 5 recebimentos
-  - `PRC-AC-06` falha transitória (Postgres fora) → retry com backoff e processamento quando voltar
-  - `PRC-AC-07` logs do worker carregam o mesmo `correlationId` da requisição original
-- [ ] `specs/openapi.yaml` (OpenAPI 3.1): paths, schemas, erros `application/problem+json` (RFC 9457) com `code`, `securitySchemes.apiKey`, header `Idempotency-Key` e exemplos
-- [ ] `specs/events/transfer.completed.v1.schema.json`: envelope `{ eventId, eventType, eventVersion, occurredAt, correlationId, data: { transferId, sourceAccountId, destinationAccountId, amountCents, completedAt } }`; message attributes `correlationId`, `traceparent`, `eventType`
-- [ ] `packages/contracts`: tipos gerados (`openapi-typescript`), schemas zod e teste que valida os exemplos do OpenAPI e do JSON Schema (ajv) contra os schemas zod
-- [ ] Script `pnpm specs:coverage` (lista ACs nas specs, procura os IDs nos testes)
-- [ ] Lint do OpenAPI com Spectral no CI
 
-**Entregáveis:** 4 specs, `openapi.yaml`, schema do evento, `packages/contracts` com testes.
+> Os critérios de aceite completos vivem em `specs/` (fonte de verdade). Esta lista só acompanha o andamento.
+
+- [x] `specs/README.md`: convenções de IDs (`-BR-`, `-AC-`, `-NFR-`), formato `### ID: título` + `- Nível:`, ciclo de mudança
+- [x] `specs/accounts/spec.md`: `ACC-BR-01..08`, `ACC-AC-01..10` (acrescentados `ACC-AC-09` nome normalizado e `ACC-AC-10` CPF mascarado; nova regra `ACC-BR-06`: respostas nunca trazem o CPF completo, `SEC-21`)
+- [x] `specs/transfers/spec.md`: `TRF-BR-01..15`, `TRF-AC-01..19`, `TRF-NFR-01..04` (acrescentados `TRF-AC-17` GET, `TRF-AC-18` falha não consome a chave, `TRF-AC-19` evento no outbox; decisão `TRF-BR-11`: só respostas 201 são armazenadas para replay)
+- [x] `specs/statement/spec.md`: `STM-BR-01..07`, `STM-AC-01..06` (acrescentado `STM-AC-06` contraparte e tipos)
+- [x] `specs/transfer-processing/spec.md`: `OBX-BR-01..04`, `PRC-BR-01..10`, `OBX-AC-01..05`, `PRC-AC-01..08`
+- [x] `specs/openapi.yaml` (OpenAPI 3.1): 7 operações, erros `application/problem+json` (RFC 9457) com `code` em enum, `securitySchemes.apiKey`, `Idempotency-Key`, `Retry-After`, exemplos em toda resposta 2xx e nos erros principais
+- [x] `specs/events/transfer.completed.v1.schema.json` (JSON Schema 2020-12): envelope aberto a campos novos (consumidor tolerante), exemplo embutido
+- [x] `.spectral.yaml`: `spectral:oas` + regras próprias (erros em problem+json, `*Cents` inteiros, request bodies fechados, 2xx com exemplo), cada uma verificada com um contrato propositalmente errado
+- [x] `packages/contracts`: zod (v4) para requests, responses e evento; tipos gerados com `openapi-typescript` (`pnpm contracts:generate`, drift checado por `pnpm contracts:check`); `contract-alignment.ts` compara em tempo de compilação os tipos do zod com os gerados
+- [x] Testes de contrato: todo exemplo do `openapi.yaml` valida no ajv e no zod; tabela diferencial ajv × zod com as divergências intencionais listadas (dígito verificador do CPF, trim do nome); evento validado por JSON Schema e zod, incluindo tolerância a campos novos
+- [x] `pnpm specs:coverage`: lista ACs por spec com níveis esperados × encontrados (unitário/integração/e2e pelo caminho do teste); falha com ID inexistente; `--require=PREFIXOS` torna a cobertura obrigatória
+- [x] CI: passo `pnpm specs:check` (Spectral + drift dos tipos + cobertura)
+
+**Entregáveis:** 4 specs, `openapi.yaml`, schema do evento, `packages/contracts` com 122 testes.
 
 **Critério de pronto**
-- Swagger UI renderiza `openapi.yaml` sem erros e Spectral passa.
-- `pnpm specs:coverage` lista todos os ACs como "sem teste" (esperado nesta fase).
+- Spectral passa ✅. Swagger UI servindo o `openapi.yaml` chega com a API na fase 2 (`/docs`).
+- `pnpm specs:coverage` lista os 48 ACs; 7 já têm o nível unitário (schemas), o resto "sem teste", como esperado ✅.
 - Saber explicar cada AC e por que ele existe.
 
 **Prepara para responder:** o que é SDD na prática? Contract-first vs code-first? Como versionar eventos? Como garantir que o código não diverge do contrato?
@@ -146,7 +109,7 @@ Convenções usadas em todas as fases:
 **Entregáveis:** endpoints `/v1/accounts`, `/v1/transfers`, `/v1/accounts/{id}/statement` funcionando.
 
 **Critério de pronto**
-- `pnpm specs:coverage` sem pendências para `ACC`, `TRF` e `STM`.
+- `pnpm specs:coverage --require=ACC,TRF,STM` passa (todos os níveis de teste esperados), e o CI passa a usar essa flag.
 - Demonstrar o teste de 50 transferências concorrentes: saldo final correto e nunca negativo.
 - Demonstrar dois `curl` paralelos com a mesma `Idempotency-Key` produzindo uma única transferência.
 - Explicar o plano de execução (`EXPLAIN`) da query do extrato usando o índice.

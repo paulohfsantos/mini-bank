@@ -1,0 +1,772 @@
+openapi: 3.1.0
+info:
+  title: mini-banco API
+  version: 1.0.0
+  summary: Contas, transferências e extrato.
+  description: |
+    Contrato REST do mini-banco. Fonte de verdade da API (ADR-0005): os tipos de
+    `packages/contracts` são gerados a partir deste arquivo, e os testes e2e validam
+    as respostas reais contra ele.
+
+    - Dinheiro sempre em centavos inteiros (`*Cents`).
+    - Erros em `application/problem+json` (RFC 9457) com `code` estável.
+    - Regras e critérios de aceite em `specs/<feature>/spec.md`.
+  license:
+    name: Uso educacional
+    identifier: UNLICENSED
+
+servers:
+  - url: http://localhost:3001
+    description: Local
+
+security:
+  - apiKey: []
+
+tags:
+  - name: accounts
+    description: Contas (specs/accounts/spec.md)
+  - name: transfers
+    description: Transferências (specs/transfers/spec.md)
+  - name: statement
+    description: Extrato (specs/statement/spec.md)
+  - name: health
+    description: Health checks
+
+paths:
+  /v1/accounts:
+    post:
+      tags: [accounts]
+      operationId: createAccount
+      summary: Criar conta
+      description: 'Regras ACC-BR-01..08. Critérios ACC-AC-01..04, 07..10.'
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+            examples:
+              valid:
+                summary: Conta com saldo inicial de R$ 1.500,00
+                value:
+                  holderName: Maria da Silva
+                  document: '52998224725'
+                  initialBalanceCents: 150000
+      responses:
+        '201':
+          description: Conta criada.
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            x-correlation-id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+              examples:
+                created:
+                  $ref: '#/components/examples/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: CPF já cadastrado (`DOCUMENT_ALREADY_REGISTERED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                duplicated:
+                  value:
+                    type: https://mini-banco.dev/problems/document-already-registered
+                    title: Documento já cadastrado
+                    status: 409
+                    code: DOCUMENT_ALREADY_REGISTERED
+                    correlationId: c-123
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/accounts/{accountId}:
+    get:
+      tags: [accounts]
+      operationId: getAccount
+      summary: Consultar conta e saldo
+      description: 'Critérios ACC-AC-05..07, ACC-AC-10.'
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Conta encontrada.
+          headers:
+            x-correlation-id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+              examples:
+                found:
+                  $ref: '#/components/examples/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/accounts/{accountId}/statement:
+    get:
+      tags: [statement]
+      operationId: getStatement
+      summary: Extrato paginado
+      description: 'Regras STM-BR-01..07. Critérios STM-AC-01..06.'
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: limit
+          in: query
+          required: false
+          description: Itens por página (padrão 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor opaco devolvido em `nextCursor`. Não interpretar.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+            pattern: '^[A-Za-z0-9_-]+$'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Página do extrato.
+          headers:
+            x-correlation-id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatementPage'
+              examples:
+                page:
+                  $ref: '#/components/examples/StatementPage'
+        '400':
+          description: Parâmetros inválidos (`VALIDATION_ERROR`) ou cursor inválido (`INVALID_CURSOR`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                invalidCursor:
+                  value:
+                    type: https://mini-banco.dev/problems/invalid-cursor
+                    title: Cursor inválido
+                    status: 400
+                    code: INVALID_CURSOR
+                    correlationId: c-123
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/transfers:
+    post:
+      tags: [transfers]
+      operationId: createTransfer
+      summary: Transferir entre contas
+      description: |
+        Síncrona e atômica (TRF-BR-04). Exige `Idempotency-Key` (TRF-BR-07..12).
+        Ordem de validação em TRF-BR-13. Critérios TRF-AC-01..16, 18, 19.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Chave de idempotência por cliente (UUID recomendado). Expira em 24 h.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+            pattern: '^[A-Za-z0-9_-]{1,64}$'
+          example: 6f1c2a8e-0000-4000-8000-000000000001
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+            examples:
+              valid:
+                summary: Transferência de R$ 150,00
+                value:
+                  sourceAccountId: 0193a1b2-7c4d-7e5f-8a6b-0000000000aa
+                  destinationAccountId: 0193a1b2-7c4d-7e5f-8a6b-0000000000bb
+                  amountCents: 15000
+      responses:
+        '201':
+          description: Transferência concluída (ou replay de uma concluída com a mesma chave).
+          headers:
+            Location:
+              $ref: '#/components/headers/Location'
+            x-correlation-id:
+              $ref: '#/components/headers/CorrelationId'
+            Idempotent-Replayed:
+              description: Presente com valor `true` quando a resposta é um replay (TRF-BR-09).
+              schema:
+                type: string
+                enum: ['true']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+              examples:
+                completed:
+                  $ref: '#/components/examples/Transfer'
+        '400':
+          description: |
+            `VALIDATION_ERROR`, `SAME_ACCOUNT`, `IDEMPOTENCY_KEY_REQUIRED` ou `IDEMPOTENCY_KEY_INVALID`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                sameAccount:
+                  value:
+                    type: https://mini-banco.dev/problems/same-account
+                    title: Origem e destino iguais
+                    status: 400
+                    code: SAME_ACCOUNT
+                    correlationId: c-123
+                keyRequired:
+                  value:
+                    type: https://mini-banco.dev/problems/idempotency-key-required
+                    title: Idempotency-Key obrigatória
+                    status: 400
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    correlationId: c-123
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AccountNotFound'
+        '409':
+          description: Outra requisição com a mesma chave ainda está em andamento (`REQUEST_IN_PROGRESS`).
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                inProgress:
+                  value:
+                    type: https://mini-banco.dev/problems/request-in-progress
+                    title: Requisição em andamento
+                    status: 409
+                    code: REQUEST_IN_PROGRESS
+                    correlationId: c-123
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          description: Saldo insuficiente (`INSUFFICIENT_FUNDS`) ou chave reutilizada com outro payload (`IDEMPOTENCY_KEY_REUSED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                insufficientFunds:
+                  value:
+                    type: https://mini-banco.dev/problems/insufficient-funds
+                    title: Saldo insuficiente
+                    status: 422
+                    code: INSUFFICIENT_FUNDS
+                    correlationId: c-123
+                keyReused:
+                  value:
+                    type: https://mini-banco.dev/problems/idempotency-key-reused
+                    title: Idempotency-Key já usada com outro payload
+                    status: 422
+                    code: IDEMPOTENCY_KEY_REUSED
+                    correlationId: c-123
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: Conta disputada; espera de lock excedeu o limite (`ACCOUNT_BUSY`).
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                busy:
+                  value:
+                    type: https://mini-banco.dev/problems/account-busy
+                    title: Conta ocupada, tente novamente
+                    status: 503
+                    code: ACCOUNT_BUSY
+                    correlationId: c-123
+
+  /v1/transfers/{transferId}:
+    get:
+      tags: [transfers]
+      operationId: getTransfer
+      summary: Consultar transferência
+      description: Critério TRF-AC-17.
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Transferência encontrada.
+          headers:
+            x-correlation-id:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transfer'
+              examples:
+                found:
+                  $ref: '#/components/examples/Transfer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Transferência não encontrada (`TRANSFER_NOT_FOUND`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                notFound:
+                  value:
+                    type: https://mini-banco.dev/problems/transfer-not-found
+                    title: Transferência não encontrada
+                    status: 404
+                    code: TRANSFER_NOT_FOUND
+                    correlationId: c-123
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health/live:
+    get:
+      tags: [health]
+      operationId: getLiveness
+      summary: Liveness (sem dependências)
+      security: []
+      responses:
+        '200':
+          description: Processo vivo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                ok:
+                  value:
+                    status: ok
+
+  /health/ready:
+    get:
+      tags: [health]
+      operationId: getReadiness
+      summary: Readiness (Postgres e relay)
+      description: Devolve só `status`, sem versões nem hosts (SEC-17).
+      security: []
+      responses:
+        '200':
+          description: Pronto para receber tráfego.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                ok:
+                  value:
+                    status: ok
+        '503':
+          description: Alguma dependência indisponível.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              examples:
+                down:
+                  value:
+                    status: error
+
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key de laboratório (ADR-0012). Só o servidor Next.js a conhece.
+
+  parameters:
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CorrelationId:
+      name: x-correlation-id
+      in: header
+      required: false
+      description: Se ausente ou inválido, a API gera um UUID (TRF-BR-14).
+      schema:
+        $ref: '#/components/schemas/CorrelationId'
+
+  headers:
+    Location:
+      description: URL do recurso criado.
+      schema:
+        type: string
+    CorrelationId:
+      description: Correlation ID efetivo da requisição.
+      schema:
+        $ref: '#/components/schemas/CorrelationId'
+    RetryAfter:
+      description: Segundos até uma nova tentativa fazer sentido.
+      schema:
+        type: integer
+        minimum: 1
+
+  responses:
+    BadRequest:
+      description: Requisição inválida (`VALIDATION_ERROR` ou `INVALID_DOCUMENT`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            validation:
+              value:
+                type: https://mini-banco.dev/problems/validation-error
+                title: Requisição inválida
+                status: 400
+                code: VALIDATION_ERROR
+                correlationId: c-123
+                errors:
+                  - path: initialBalanceCents
+                    message: deve ser um inteiro entre 0 e 10000000
+    Unauthorized:
+      description: API key ausente ou inválida (`UNAUTHORIZED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            unauthorized:
+              value:
+                type: https://mini-banco.dev/problems/unauthorized
+                title: Não autenticado
+                status: 401
+                code: UNAUTHORIZED
+                correlationId: c-123
+    AccountNotFound:
+      description: Conta não encontrada (`ACCOUNT_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            notFound:
+              value:
+                type: https://mini-banco.dev/problems/account-not-found
+                title: Conta não encontrada
+                status: 404
+                code: ACCOUNT_NOT_FOUND
+                detail: Conta de origem não encontrada
+                correlationId: c-123
+    PayloadTooLarge:
+      description: Corpo acima de 16 KB (`PAYLOAD_TOO_LARGE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            tooLarge:
+              value:
+                type: https://mini-banco.dev/problems/payload-too-large
+                title: Corpo da requisição muito grande
+                status: 413
+                code: PAYLOAD_TOO_LARGE
+                correlationId: c-123
+    InternalError:
+      description: Erro inesperado (`INTERNAL_ERROR`), sem detalhes internos (SEC-13).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            internal:
+              value:
+                type: https://mini-banco.dev/problems/internal-error
+                title: Erro interno
+                status: 500
+                code: INTERNAL_ERROR
+                correlationId: c-123
+
+  examples:
+    Account:
+      value:
+        id: 0193a1b2-7c4d-7e5f-8a6b-0000000000aa
+        holderName: Maria da Silva
+        documentMasked: '***.982.247-**'
+        balanceCents: 150000
+        createdAt: '2026-11-18T14:00:00.000Z'
+        updatedAt: '2026-11-18T14:00:00.000Z'
+    Transfer:
+      value:
+        id: 0193a1b2-7c4d-7e5f-8a6b-000000000001
+        sourceAccountId: 0193a1b2-7c4d-7e5f-8a6b-0000000000aa
+        destinationAccountId: 0193a1b2-7c4d-7e5f-8a6b-0000000000bb
+        amountCents: 15000
+        status: COMPLETED
+        createdAt: '2026-11-18T14:03:21.498Z'
+    StatementPage:
+      value:
+        items:
+          - id: 0193a1b2-7c4d-7e5f-8a6b-0000000000e2
+            type: DEBIT
+            amountCents: 15000
+            balanceAfterCents: 135000
+            transferId: 0193a1b2-7c4d-7e5f-8a6b-000000000001
+            counterpartyAccountId: 0193a1b2-7c4d-7e5f-8a6b-0000000000bb
+            createdAt: '2026-11-18T14:03:21.498Z'
+          - id: 0193a1b2-7c4d-7e5f-8a6b-0000000000e1
+            type: OPENING
+            amountCents: 150000
+            balanceAfterCents: 150000
+            transferId: null
+            counterpartyAccountId: null
+            createdAt: '2026-11-18T14:00:00.000Z'
+        nextCursor: null
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+
+    CorrelationId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9-]{1,64}$'
+
+    CreateAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [holderName, document, initialBalanceCents]
+      properties:
+        holderName:
+          type: string
+          description: Aparado e normalizado em NFC antes da validação de tamanho (ACC-BR-04).
+          minLength: 1
+          maxLength: 120
+          pattern: '^[^\u0000-\u001F\u007F]+$'
+        document:
+          type: string
+          description: CPF com 11 dígitos, sem pontuação; dígitos verificadores validados no servidor (ACC-BR-01).
+          pattern: '^[0-9]{11}$'
+        initialBalanceCents:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, holderName, documentMasked, balanceCents, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        holderName:
+          type: string
+        documentMasked:
+          type: string
+          description: CPF mascarado (ACC-BR-06).
+          pattern: '^\*\*\*\.[0-9]{3}\.[0-9]{3}-\*\*$'
+        balanceCents:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateTransferRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceAccountId, destinationAccountId, amountCents]
+      properties:
+        sourceAccountId:
+          $ref: '#/components/schemas/Uuid'
+        destinationAccountId:
+          $ref: '#/components/schemas/Uuid'
+        amountCents:
+          type: integer
+          minimum: 1
+          maximum: 100000000
+
+    Transfer:
+      type: object
+      additionalProperties: false
+      required: [id, sourceAccountId, destinationAccountId, amountCents, status, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        sourceAccountId:
+          $ref: '#/components/schemas/Uuid'
+        destinationAccountId:
+          $ref: '#/components/schemas/Uuid'
+        amountCents:
+          type: integer
+          minimum: 1
+          maximum: 100000000
+        status:
+          type: string
+          enum: [COMPLETED]
+        createdAt:
+          type: string
+          format: date-time
+
+    StatementEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [id, type, amountCents, balanceAfterCents, transferId, counterpartyAccountId, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        type:
+          type: string
+          enum: [OPENING, DEBIT, CREDIT]
+        amountCents:
+          type: integer
+          minimum: 0
+          description: Sempre não negativo; o sentido vem de `type` (STM-BR-03).
+        balanceAfterCents:
+          type: integer
+          minimum: 0
+        transferId:
+          description: Nulo para `OPENING` (STM-BR-04).
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        counterpartyAccountId:
+          description: Nulo para `OPENING` (STM-BR-04).
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+
+    StatementPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/StatementEntry'
+        nextCursor:
+          description: Cursor da próxima página; nulo na última (STM-BR-06).
+          oneOf:
+            - type: string
+            - type: 'null'
+
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - INVALID_DOCUMENT
+        - INVALID_CURSOR
+        - SAME_ACCOUNT
+        - IDEMPOTENCY_KEY_REQUIRED
+        - IDEMPOTENCY_KEY_INVALID
+        - UNAUTHORIZED
+        - ACCOUNT_NOT_FOUND
+        - TRANSFER_NOT_FOUND
+        - DOCUMENT_ALREADY_REGISTERED
+        - REQUEST_IN_PROGRESS
+        - PAYLOAD_TOO_LARGE
+        - IDEMPOTENCY_KEY_REUSED
+        - INSUFFICIENT_FUNDS
+        - ACCOUNT_BUSY
+        - INTERNAL_ERROR
+
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details, com extensões `code`, `correlationId` e `errors`.
+      required: [type, title, status, code, correlationId]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        correlationId:
+          $ref: '#/components/schemas/CorrelationId'
+        errors:
+          type: array
+          description: Detalhes de validação campo a campo (só em `VALIDATION_ERROR`).
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, message]
+            properties:
+              path:
+                type: string
+              message:
+                type: string
+
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
