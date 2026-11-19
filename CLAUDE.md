@@ -4,7 +4,7 @@ Instruções para a IA (Claude Code) trabalhar neste repositório. Leia inteiro 
 
 ## O projeto
 
-Laboratório de contas e transferências que demonstra práticas de banco corporativo: NestJS, Next.js, PostgreSQL com SQL puro, SQS com outbox, AWS via Terraform e **Spec-Driven Development**. Cada decisão precisa poder ser explicada em entrevista.
+Laboratório de contas e transferências que demonstra práticas de banco corporativo: NestJS 12 (ESM), Next.js, PostgreSQL com SQL puro, SQS com outbox, AWS via Terraform e **Spec-Driven Development**. Cada decisão precisa poder ser explicada em entrevista.
 
 Documentos de referência (fonte de verdade, nesta ordem):
 
@@ -38,16 +38,21 @@ pnpm infra:down | infra:reset
 pnpm lint | lint:fix
 pnpm format | format:check
 pnpm typecheck               # tsc --noEmit em cada pacote
-pnpm test                    # jest (swc) em todo o monorepo
+pnpm build                   # swc em todos os pacotes (dist/)
+pnpm dev                     # api: compila, recompila ao salvar, reinicia o node; logs via pino-pretty (LOG_PRETTY=false = JSON cru)
+pnpm db:migrate              # dbmate up + db/schema.sql (db:rollback, db:new <nome>)
+pnpm test                    # vitest (swc), projeto unit; pnpm test:watch em modo watch
+pnpm test:integration        # Testcontainers: 1 Postgres por execução, 1 banco por arquivo (TEMPLATE)
+pnpm test:e2e                # Supertest na app completa + respostas validadas contra o openapi.yaml
 pnpm specs:lint             # Spectral no openapi.yaml (falha em warn)
-pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=ACC,TRF torna obrigatório
+pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=ACC,TRF,STM torna obrigatório
 pnpm contracts:generate     # regenera packages/contracts/src/generated/openapi.ts após mudar o openapi.yaml
 pnpm contracts:check        # falha se os tipos gerados estiverem desatualizados
-pnpm specs:check            # specs:lint + contracts:check + specs:coverage
+pnpm specs:check            # specs:lint + contracts:check + specs:coverage --require=ACC,TRF,STM
 pnpm check                  # lint + format:check + typecheck + test + specs:check (rode antes de concluir)
 ```
 
-Ainda não existem (chegam nas fases 2–3): `pnpm db:migrate`, `pnpm test:integration`, `pnpm test:e2e`, `pnpm dev`.
+Integração e e2e precisam do Docker (fora do `pnpm check`; o CI roda num job próprio). Testes rodam como `mini_banco_api`: um GRANT faltando aparece como `42501` no teste.
 
 Mudou o `openapi.yaml`? Rode `pnpm contracts:generate` e ajuste o zod em `packages/contracts/src/schemas/`; `contract-alignment.ts` quebra o typecheck se os dois divergirem.
 
@@ -76,7 +81,9 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 ### TypeScript
 - `strict` + `noUncheckedIndexedAccess`. Proibido `any` (use `unknown` + validação). Proibido `console` (use o logger).
 - TypeScript fixado em **6.0.x** via catálogo do pnpm (`pnpm-workspace.yaml`): o typescript-eslint ainda não suporta TS 7. Não atualize sem checar o peer range.
-- Imports relativos **sem extensão** (`from './cpf'`, nunca `'./cpf.js'`; lint `no-restricted-imports`). Apps e pacotes Node são CommonJS, onde NodeNext resolve sem extensão.
+- **ESM em tudo** (`"type": "module"`; ADR-0023). Imports relativos **sem extensão** (`from './cpf'`, nunca `'./cpf.js'`; lint `no-restricted-imports`): o typecheck usa `moduleResolution: bundler` e o build com SWC (`resolveFully`) acrescenta `.js` na saída.
+- `tsc` só checa tipos (`noEmit`); build é `swc`. Use `import.meta.dirname`, não `__dirname`. Pacotes do workspace expõem a condição `development` → `src/`.
+- Tipos importados com `import type` (`verbatimModuleSyntax`).
 - Promises sempre aguardadas (`no-floating-promises`); `void` explícito só com justificativa.
 
 ### Dinheiro
@@ -100,7 +107,7 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 - Métricas só com dimensões de baixa cardinalidade, nunca `accountId`/`transferId` (`PERF-25`).
 
 ### Testes
-- Unitário: Jest (`*.spec.ts` ao lado do código), use cases com fakes dos ports.
+- Unitário: Vitest (`*.spec.ts` ao lado do código, `import { describe, it, expect } from 'vitest'`, sem globals), use cases com fakes dos ports.
 - Integração: Testcontainers com Postgres real (e fila real). E2E: Supertest + validação contra `openapi.yaml`.
 - Dados de teste: CPFs gerados (válidos, mas falsos). Nunca dados reais.
 
@@ -135,6 +142,8 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 
 ## Estado atual
 
-- **Fases 0 (fundação) e 1 (specs e contratos) concluídas.** Próxima: fase 2 (API de contas e transferências).
+- **Fases 0, 1 e 2 (API de contas, transferências e extrato) concluídas.** Próxima: fase 3 (outbox relay + worker).
+- Pipeline HTTP (`apps/api/src/app.ts`): helmet → log/correlação → API key (antes do roteamento: 401 antes de 404) → body parser 16 KB → Nest → filtro `problem+json`. Validação com `parseOrThrow` (zod) no controller, na ordem de TRF-BR-13.
+- Testes e2e usam `bodyOf(res)`/`httpServer(app)` (`apps/api/test/support`) porque o `res.body` do Supertest é `any`.
 - Divergências intencionais entre `openapi.yaml` e zod (dígito verificador do CPF, trim do nome) estão listadas em `packages/contracts/src/contract.spec.ts`; nova divergência entra lá e na spec.
 - SQS local é **ElasticMQ** (`:9324`), não LocalStack (ADR-0022). O endpoint vem de `AWS_ENDPOINT_URL`; na AWS a variável não existe e o SDK usa o SQS real.

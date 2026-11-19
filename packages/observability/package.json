@@ -2,13 +2,24 @@
   "name": "@mini-banco/observability",
   "version": "0.0.0",
   "private": true,
-  "description": "Logger pino, correlationId (AsyncLocalStorage) e bootstrap OpenTelemetry — fases 2 e 5",
+  "type": "module",
+  "description": "Logger pino com redaction, correlationId (AsyncLocalStorage) e middleware HTTP; OpenTelemetry na fase 5",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "swc src -d dist --strip-leading-paths --config-file .swcrc"
+  },
+  "dependencies": {
+    "@mini-banco/contracts": "workspace:*",
+    "pino": "^10.4.0"
   },
   "devDependencies": {
     "@mini-banco/config": "workspace:*",
-    "@types/jest": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

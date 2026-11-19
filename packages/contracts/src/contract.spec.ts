@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 // Testes de contrato: o openapi.yaml (fonte de verdade) e os schemas zod precisam concordar.
 // 1. Todo exemplo do contrato é válido no próprio contrato (ajv) e no zod correspondente.
 // 2. Para uma tabela de entradas, ajv e zod dão o mesmo veredito, exceto as divergências
@@ -7,7 +8,7 @@ import { AccountSchema, CreateAccountRequestSchema } from './schemas/accounts';
 import { HealthSchema, ProblemSchema } from './schemas/common';
 import { StatementPageSchema } from './schemas/statement';
 import { CreateTransferRequestSchema, TransferSchema } from './schemas/transfers';
-import { collectExamples, createOpenApiValidator, loadOpenApi } from './test-support/openapi';
+import { collectExamples, createOpenApiValidator, loadOpenApi } from './testing/openapi';
 
 const doc = loadOpenApi();
 const validateOas = createOpenApiValidator(doc);

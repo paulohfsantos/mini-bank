@@ -38,3 +38,15 @@ Fonte de verdade do **comportamento** do sistema. O código implementa o que est
 - Datas em ISO 8601 UTC (`date-time`).
 - Erros em `application/problem+json` (RFC 9457) com `code` estável; o front mapeia mensagens pelo `code`, não pelo texto.
 - Corpos de requisição rejeitam campos desconhecidos. Consumidores de eventos ignoram campos desconhecidos (evolução aditiva).
+
+## Erros transversais (valem para toda a API)
+
+| Situação | Status | `code` |
+|---|---|---|
+| Rota ou método inexistente | 404 | `ROUTE_NOT_FOUND` |
+| JSON malformado no corpo | 400 | `VALIDATION_ERROR` |
+| Corpo > 16 KB | 413 | `PAYLOAD_TOO_LARGE` |
+| Erro inesperado | 500 | `INTERNAL_ERROR`, só com `correlationId`, sem mensagem interna nem stack (`SEC-13`) |
+| `409 REQUEST_IN_PROGRESS` e `503 ACCOUNT_BUSY` | | sempre com `Retry-After` (segundos) |
+
+A autenticação vem antes do roteamento de recursos: uma rota inexistente sem `x-api-key` válida responde `401`, para não revelar quais rotas existem.

@@ -1,6 +1,7 @@
 {
   "name": "mini-banco",
   "private": true,
+  "type": "module",
   "description": "Laboratório Full Stack + AWS + Spec-Driven Development",
   "packageManager": "pnpm@12.18.0",
   "engines": {
@@ -12,18 +13,26 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm -r --parallel typecheck",
-    "test": "jest --passWithNoTests",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --parallel typecheck",
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter @mini-banco/api dev",
+    "test": "vitest run --project unit --passWithNoTests",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm specs:check",
     "specs:lint": "spectral lint specs/openapi.yaml --fail-severity=warn",
     "specs:coverage": "node scripts/specs-coverage.mjs",
-    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage",
+    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM",
     "contracts:generate": "pnpm --filter @mini-banco/contracts generate",
     "contracts:check": "pnpm --filter @mini-banco/contracts generate:check",
+    "db:migrate": "dbmate --no-dump-schema up && ./scripts/db-dump-schema.sh",
+    "db:rollback": "dbmate --no-dump-schema rollback && ./scripts/db-dump-schema.sh",
+    "db:new": "dbmate new",
     "infra:up": "docker compose up -d --wait",
     "infra:check": "./scripts/check-local-infra.sh",
     "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v && docker compose up -d --wait"
+    "infra:reset": "docker compose down -v && docker compose up -d --wait",
+    "test:watch": "vitest --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "test:e2e": "vitest run --project e2e --passWithNoTests"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
@@ -38,18 +47,19 @@
     "@eslint/js": "^10.0.1",
     "@mini-banco/config": "workspace:*",
     "@stoplight/spectral-cli": "^6.17.1",
+    "@swc/cli": "^0.8.2",
     "@swc/core": "^1.16.22",
-    "@swc/jest": "^0.2.39",
-    "@types/jest": "catalog:",
     "@types/node": "catalog:",
+    "dbmate": "^2.38.1",
     "eslint": "^10.15.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.14.0",
     "husky": "^9.1.7",
-    "jest": "^30.5.2",
     "lint-staged": "^17.6.1",
     "prettier": "^3.10.1",
     "typescript": "catalog:",
-    "typescript-eslint": "^8.73.0"
+    "typescript-eslint": "^8.73.0",
+    "unplugin-swc": "^2.0.0",
+    "vitest": "5.1.0"
   }
 }

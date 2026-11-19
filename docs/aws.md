@@ -448,6 +448,19 @@ O CI **não** roda `terraform apply`: o ambiente é criado localmente via SSO no
 | `mini_banco_api` | `SELECT/INSERT/UPDATE` em `accounts`, `transfers`, `ledger_entries`, `idempotency_keys`, `outbox` |
 | `mini_banco_worker` | `SELECT` em `transfers`; `SELECT/INSERT` em `fraud_reviews`, `notifications`, `processed_messages` |
 
+Os GRANTs ficam na migration `0002_app_roles.sql` (papéis `NOLOGIN`; a senha/LOGIN é dada fora da migration: `infra/local/postgres-init.sql` no local, Terraform na AWS). Os testes de integração rodam como `mini_banco_api` e verificam que `DELETE` no histórico e leitura das tabelas do worker falham com `42501`.
+
+**Orçamento de conexões (`PERF-02`).** `max_connections` do `db.t4g.micro` ≈ 80–110; reservamos margem para o RDS e para sessões administrativas:
+
+| Processo | Pool (`max`) | Instâncias no lab | Total |
+|---|---|---|---|
+| api (inclui o `OutboxRelay`, fase 3) | 10 (`DB_POOL_MAX`) | até 2 (deploy rolling) | 20 |
+| worker | 5 | até 2 | 10 |
+| migrate (dbmate) | 1 | 1 | 1 |
+| **Soma** | | | **31** (< 40% de 80) |
+
+`connectionTimeoutMillis = 3 s` faz uma requisição falhar rápido em vez de esperar indefinidamente por conexão quando o pool esgota.
+
 ---
 
 ## 4. Estrutura do Terraform e estado remoto
@@ -643,7 +656,7 @@ Com 12 sessões/mês: **≈ US$ 5–6 + < US$ 0,50 de persistentes**. O Budget d
 
 | Service | Env (texto) | Secrets (injetados) |
 |---|---|---|
-| api | `PORT=3001`, `DB_HOST`, `DB_NAME=minibanco`, `SQS_QUEUE_URL`, `OUTBOX_RELAY_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`, `OTEL_SERVICE_NAME=mini-banco-api` | `DB_USER`, `DB_PASSWORD` (de `mini-banco/lab/db-api`, chaves JSON `username`/`password`), `API_KEY` |
+| api | `PORT=3001`, `LOG_LEVEL=info`, `DB_HOST`, `DB_NAME=minibanco`, `DB_SSL=verify-full`, `DB_POOL_MAX=10`, `SQS_QUEUE_URL`, `OUTBOX_RELAY_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`, `OTEL_SERVICE_NAME=mini-banco-api` | `API_DB_USER`, `API_DB_PASSWORD` (de `mini-banco/lab/db-api`, chaves JSON `username`/`password`), `API_KEYS` (`clientId:chave`, separados por vírgula) |
 | worker | `DB_HOST`, `DB_NAME`, `SQS_QUEUE_URL`, `OTEL_*`, `OTEL_SERVICE_NAME=mini-banco-worker` | `DB_USER`, `DB_PASSWORD` (de `mini-banco/lab/db-worker`) |
 | migrate | `DB_HOST`, `DB_NAME` | senha master do secret gerenciado pelo RDS |
 

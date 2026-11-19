@@ -1,9 +1,10 @@
+import { describe, expect, it } from 'vitest';
 // O schema zod do evento precisa concordar com specs/events/transfer.completed.v1.schema.json.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import { SPECS_DIR } from '../test-support/openapi';
+import { SPECS_DIR } from '../testing/openapi';
 import { TransferCompletedEventV1Schema } from './transfer-completed';
 
 interface EventJsonSchema {

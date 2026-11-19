@@ -2,14 +2,31 @@
   "name": "@mini-banco/database",
   "version": "0.0.0",
   "private": true,
-  "description": "Pool pg, UnitOfWork, parsers de tipo e helpers de transação — fase 2",
+  "type": "module",
+  "description": "Pool pg, transações com timeouts, unidade de trabalho (AsyncLocalStorage), UUIDv7 e Postgres de teste",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "swc src -d dist --strip-leading-paths --config-file .swcrc"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@mini-banco/config": "workspace:*",
-    "@types/jest": "catalog:",
+    "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "catalog:",
+    "@types/pg": "^8.23.1",
+    "testcontainers": "^12.2.1",
     "typescript": "catalog:"
   }
 }

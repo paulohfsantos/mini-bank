@@ -132,7 +132,7 @@ Severidade: **Alta** (perda de dinheiro, vazamento ou indisponibilidade prováve
 | PERF-23 | SSR do Amplify | Cold starts e waterfalls de `fetch` em Server Components | Baixa | `Promise.all` para fetches independentes; `no-store` só no saldo e no extrato | 4 |
 | PERF-24 | Logs excessivos | Log de body inteiro em toda requisição → custo de ingestão e PII | Média | Uma linha por requisição (método, rota, status, duração, `correlationId`); `debug` desligado na AWS; pino assíncrono, sem `pino-pretty` em produção | 2 |
 | PERF-25 | Cardinalidade de métricas | Dimensão `accountId` ou `transferId` no EMF cria uma métrica cobrada por valor | Média | Dimensões só de baixa cardinalidade (`rule`, `reason`, `service`) | 5, 8 |
-| PERF-26 | Testes lentos | Um Testcontainers por arquivo de teste → CI de 10+ min | Baixa | Um container por execução; um banco por worker do Jest via `CREATE DATABASE ... TEMPLATE`; truncate entre testes | 2 |
+| PERF-26 | Testes lentos | Um Testcontainers por arquivo de teste → CI de 10+ min | Baixa | Um container por execução; um banco por worker do Vitest via `CREATE DATABASE ... TEMPLATE`; truncate entre testes | 2 |
 
 ---
 

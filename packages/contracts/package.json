@@ -2,16 +2,20 @@
   "name": "@mini-banco/contracts",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "Contratos compartilhados: tipos gerados do openapi.yaml, schemas zod (API e eventos) e regras de formato",
   "exports": {
     ".": {
       "development": "./src/index.ts",
-      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "swc src -d dist --strip-leading-paths --config-file .swcrc",
     "generate": "openapi-typescript ../../specs/openapi.yaml -o src/generated/openapi.ts",
     "generate:check": "openapi-typescript ../../specs/openapi.yaml -o src/generated/openapi.ts --check",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -21,7 +25,6 @@
   },
   "devDependencies": {
     "@mini-banco/config": "workspace:*",
-    "@types/jest": "catalog:",
     "@types/node": "catalog:",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

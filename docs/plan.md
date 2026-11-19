@@ -25,7 +25,7 @@ Convenções usadas em todas as fases:
 - [x] `pnpm-workspace.yaml` com `apps/*` e `packages/*` e catálogo de versões (TypeScript fixado em 6.0.x: o typescript-eslint ainda não suporta TS 7)
 - [x] `packages/config`: `tsconfig.base.json` (`strict: true`, `noUncheckedIndexedAccess`), ESLint 10 (flat config, regras com informação de tipo, `no-explicit-any` em todo o código), Prettier
 - [x] Esqueletos vazios: `apps/web`, `apps/api`, `apps/worker`, `packages/contracts`, `packages/observability`, `packages/database`
-- [x] Jest na raiz com `@swc/jest` (decorators legados + metadata para o Nest)
+- [x] Jest na raiz com `@swc/jest` (decorators legados + metadata para o Nest). *Substituído por Vitest + `unplugin-swc` no início da fase 2 (ADR-0023).*
 - [x] `docker-compose.yml`: `postgres:17.12-alpine` (healthcheck), `softwaremill/elasticmq-native:1.7.1` (SQS em :9324; LocalStack passou a exigir auth token, ADR-0022), `jaegertracing/jaeger:2.23.0` (v2; 16686, OTLP 4317/4318)
 - [x] `infra/local/elasticmq.conf`: cria `mini-banco-transfer-events-dlq` e `mini-banco-transfer-events` com DLQ `maxReceiveCount=5`, visibility 30 s, long polling 20 s
 - [x] `scripts/check-local-infra.sh` (`pnpm infra:check`): verifica Postgres, filas, redrive policy e Jaeger usando só curl
@@ -84,26 +84,27 @@ Convenções usadas em todas as fases:
 **Objetivo:** API síncrona correta sob concorrência, com testes nos três níveis.
 
 **Tarefas**
-- [ ] `packages/observability`: logger pino (JSON, assíncrono, sem `pino-pretty` fora do local), `CorrelationIdMiddleware` (`x-correlation-id` validado ou UUID novo) com `AsyncLocalStorage`, redaction de `document`, `x-api-key` e `authorization`; uma linha de log por requisição, sem body (`PERF-24`, `SEC-21`)
-- [ ] `db/migrations/0001_initial.sql` (dbmate) com todas as tabelas de `README.md` §3.3, `CHECK`s, FKs e índices (incluindo `transfers (source_account_id, created_at)` e `destination_account_id`; `PERF-11`); `db/schema.sql` gerado e versionado
-- [ ] Regras de migration no `CLAUDE.md` e num checklist de PR (`PERF-15`): `SET lock_timeout = '3s'` no topo, `CREATE INDEX CONCURRENTLY` com `transaction:false`, expand/contract, nunca `DROP` na mesma release que remove o uso
-- [ ] `packages/database`: `Pool` do `pg` com `max` pequeno (10 na api, 5 no worker; orçamento total documentado contra o `max_connections` do RDS, `PERF-02`), `connectionTimeoutMillis`, `idle_in_transaction_session_timeout = 10s`; parser de `int8` (OID 20) para `bigint`, porque o `pg` devolve `bigint` como string por padrão; helper `withTransaction(fn)` que executa `SET LOCAL lock_timeout = '2s'` e `SET LOCAL statement_timeout = '5s'` (`PERF-06`) e traduz `55P03` (lock_not_available) em erro de domínio `ResourceBusy`
-- [ ] Serialização de dinheiro na borda (`PERF-09`): `Money` usa `bigint` internamente; o mapper HTTP converte para `number` com `Number.isSafeInteger` (falha alto se violado) e nunca passa `BigInt` ao `JSON.stringify`
-- [ ] IDs UUIDv7 gerados na aplicação (`PERF-10`)
-- [ ] `main.ts`: `server.keepAliveTimeout = 65_000` e `server.headersTimeout = 66_000`, maiores que o idle timeout de 60 s do ALB (`PERF-01`); `enableShutdownHooks()`; limite de body de 16 KB; `helmet`; sem CORS (`SEC-19`)
-- [ ] Usuários de banco: `mini_banco_api` (DML nas tabelas da API) e `mini_banco_worker` (SELECT em `transfers`, DML em `fraud_reviews`, `notifications`, `processed_messages`)
-- [ ] Domínio: `Money` (centavos, inteiro, sem negativos), `Cpf`, `Account.debit/credit`, erros de domínio tipados
-- [ ] Application: `CreateAccountUseCase`, `GetAccountUseCase`, `TransferFundsUseCase`, `GetStatementUseCase`; ports `AccountRepository`, `TransferRepository`, `IdempotencyStore`, `OutboxWriter`, `UnitOfWork`
-- [ ] Infra: repositórios SQL (`PgAccountRepository`, `PgTransferRepository`, ...) com queries parametrizadas (`$1, $2`; nunca concatenação de strings) e funções `toDomain(row)` explícitas; `UnitOfWork` que pega um client do pool, executa `BEGIN` / `COMMIT` / `ROLLBACK` e o propaga aos repositórios via `AsyncLocalStorage` (Read Committed + locks explícitos); `SELECT ... FOR UPDATE` ordenado por `id`
-- [ ] Lint: regra que proíbe template string interpolada como primeiro argumento de `query()` (prevenção de SQL injection)
-- [ ] Idempotência: `INSERT` da chave primeiro (concorrente bloqueia no índice único até o commit, limitado pelo `lock_timeout`), hash SHA-256 do payload canônico, gravação da resposta no mesmo commit; ordem de locks fixa: chave → contas por `id` (`PERF-08`)
-- [ ] Extrato com keyset pagination: cursor opaco base64url de `(created_at, id)`, decodificado com zod estrito (`SEC-16`)
-- [ ] `ApiKeyGuard` com `crypto.timingSafeEqual` sobre hashes SHA-256 (`SEC-08`), `ZodValidationPipe`, filtro global que converte erros de domínio em `problem+json`; erros desconhecidos viram 500 genérico com `correlationId`, sem mensagem do Postgres nem stack (`SEC-13`)
-- [ ] Swagger servindo `specs/openapi.yaml` em `/docs`
-- [ ] Testes:
-  - unitários (Jest): `Money`, `Cpf`, use cases com fakes dos ports
+- [x] Migração para ESM + build com SWC + Vitest, exigida pelo NestJS 12 (só ESM), mantendo imports sem extensão (ADR-0023)
+- [x] `packages/observability`: logger pino (JSON, assíncrono, sem `pino-pretty` fora do local), `CorrelationIdMiddleware` (`x-correlation-id` validado ou UUID novo) com `AsyncLocalStorage`, redaction de `document`, `x-api-key` e `authorization`; uma linha de log por requisição, sem body (`PERF-24`, `SEC-21`)
+- [x] `db/migrations/0001_initial.sql` (dbmate) com todas as tabelas de `README.md` §3.3, `CHECK`s, FKs e índices (incluindo `transfers (source_account_id, created_at)` e `destination_account_id`; `PERF-11`); `db/schema.sql` gerado e versionado
+- [x] Regras de migration no `CLAUDE.md` e num checklist de PR (`PERF-15`): `SET lock_timeout = '3s'` no topo, `CREATE INDEX CONCURRENTLY` com `transaction:false`, expand/contract, nunca `DROP` na mesma release que remove o uso
+- [x] `packages/database`: `Pool` do `pg` com `max` pequeno (10 na api, 5 no worker; orçamento total documentado contra o `max_connections` do RDS, `PERF-02`), `connectionTimeoutMillis`, `idle_in_transaction_session_timeout = 10s`; parser de `int8` (OID 20) para `bigint`, porque o `pg` devolve `bigint` como string por padrão; helper `withTransaction(fn)` que executa `SET LOCAL lock_timeout = '2s'` e `SET LOCAL statement_timeout = '5s'` (`PERF-06`) e traduz `55P03` (lock_not_available) em erro de domínio `ResourceBusy`
+- [x] Serialização de dinheiro na borda (`PERF-09`): `Money` usa `bigint` internamente; o mapper HTTP converte para `number` com `Number.isSafeInteger` (falha alto se violado) e nunca passa `BigInt` ao `JSON.stringify`
+- [x] IDs UUIDv7 gerados na aplicação (`PERF-10`)
+- [x] `main.ts`: `server.keepAliveTimeout = 65_000` e `server.headersTimeout = 66_000`, maiores que o idle timeout de 60 s do ALB (`PERF-01`); `enableShutdownHooks()`; limite de body de 16 KB; `helmet`; sem CORS (`SEC-19`)
+- [x] Usuários de banco: `mini_banco_api` (DML nas tabelas da API) e `mini_banco_worker` (SELECT em `transfers`, DML em `fraud_reviews`, `notifications`, `processed_messages`)
+- [x] Domínio: `Money` (centavos, inteiro, sem negativos), `Cpf`, `Account.debit/credit`, erros de domínio tipados
+- [x] Application: `CreateAccountUseCase`, `GetAccountUseCase`, `TransferFundsUseCase`, `GetStatementUseCase`; ports `AccountRepository`, `TransferRepository`, `IdempotencyStore`, `OutboxWriter`, `UnitOfWork`
+- [x] Infra: repositórios SQL (`PgAccountRepository`, `PgTransferRepository`, ...) com queries parametrizadas (`$1, $2`; nunca concatenação de strings) e funções `toDomain(row)` explícitas; `UnitOfWork` que pega um client do pool, executa `BEGIN` / `COMMIT` / `ROLLBACK` e o propaga aos repositórios via `AsyncLocalStorage` (Read Committed + locks explícitos); `SELECT ... FOR UPDATE` ordenado por `id`
+- [x] Lint: regra que proíbe template string interpolada como primeiro argumento de `query()` (prevenção de SQL injection)
+- [x] Idempotência: `INSERT` da chave primeiro (concorrente bloqueia no índice único até o commit, limitado pelo `lock_timeout`), hash SHA-256 do payload canônico, gravação da resposta no mesmo commit; ordem de locks fixa: chave → contas por `id` (`PERF-08`)
+- [x] Extrato com keyset pagination: cursor opaco base64url de `(created_at, id)`, decodificado com zod estrito (`SEC-16`)
+- [x] Autenticação por API key (middleware Express antes do roteamento, em vez de `ApiKeyGuard`, para responder 401 antes de 404) com `crypto.timingSafeEqual` sobre hashes SHA-256 (`SEC-08`), validação zod explícita no controller (`parseOrThrow`, para garantir a ordem de TRF-BR-13), filtro global que converte erros de domínio em `problem+json`; erros desconhecidos viram 500 genérico com `correlationId`, sem mensagem do Postgres nem stack (`SEC-13`)
+- [x] Swagger servindo `specs/openapi.yaml` em `/docs`
+- [x] Testes:
+  - unitários (Vitest): `Money`, `Cpf`, use cases com fakes dos ports
   - integração (Testcontainers Postgres): repositórios, locks, `TRF-AC-06`, `TRF-AC-07`, `TRF-AC-11`, `TRF-AC-13..15`, `STM-AC-05`, o invariante `SUM(ledger) = balance`, payloads clássicos de SQL injection (`SEC-09`) e `EXPLAIN` das queries críticas usando índice (`PERF-11`)
-  - um banco por worker do Jest via `CREATE DATABASE ... TEMPLATE` sobre um único container (`PERF-26`)
+  - um banco por worker do Vitest via `CREATE DATABASE ... TEMPLATE` sobre um único container (`PERF-26`)
   - e2e (Supertest + Testcontainers): todos os `ACC-AC`, `TRF-AC` e `STM-AC`, com validação das respostas contra `openapi.yaml`
 
 **Entregáveis:** endpoints `/v1/accounts`, `/v1/transfers`, `/v1/accounts/{id}/statement` funcionando.

@@ -6,7 +6,7 @@ import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import { parse } from 'yaml';
 
-export const SPECS_DIR = resolve(__dirname, '../../../../specs');
+export const SPECS_DIR = resolve(import.meta.dirname, '../../../../specs');
 
 interface Ref {
   $ref: string;
@@ -98,5 +98,53 @@ export function createOpenApiValidator(doc: OpenApiDoc) {
     const validate = ajv.getSchema(`${OAS_ID}#/components/schemas/${schemaName}`);
     if (!validate) throw new Error(`schema ${schemaName} não encontrado no contrato`);
     return validate(value) as boolean;
+  };
+}
+
+/** Remove o prefixo `#/components/<tipo>/` de um $ref. */
+function componentName(ref: string, kind: 'schemas' | 'responses'): string {
+  return refName(ref, `#/components/${kind}/`);
+}
+
+export interface ResponseCheck {
+  method: string;
+  /** Template do path como no contrato, ex.: `/v1/accounts/{accountId}`. */
+  path: string;
+  status: number;
+  contentType: string | undefined;
+  body: unknown;
+}
+
+/**
+ * Valida uma resposta HTTP real contra o contrato: o status precisa estar documentado
+ * para a operação, o content-type precisa bater e o corpo precisa validar no schema.
+ * Devolve a lista de problemas (vazia = conforme).
+ */
+export function createResponseValidator(doc: OpenApiDoc = loadOpenApi()) {
+  const validateSchema = createOpenApiValidator(doc);
+  return (check: ResponseCheck): string[] => {
+    const operation = doc.paths[check.path]?.[check.method.toLowerCase()];
+    if (!operation) return [`operação ${check.method} ${check.path} não existe no contrato`];
+
+    const raw = operation.responses[String(check.status)];
+    if (!raw) return [`status ${check.status} não documentado em ${operation.operationId}`];
+    const response = isRef(raw)
+      ? doc.components.responses[componentName(raw.$ref, 'responses')]
+      : raw;
+    const content = response?.content;
+    if (!content)
+      return check.body === undefined || check.body === ''
+        ? []
+        : ['resposta sem corpo no contrato'];
+
+    const mediaType = (check.contentType ?? '').split(';')[0]?.trim() ?? '';
+    const media = content[mediaType];
+    if (!media?.schema) {
+      return [
+        `content-type ${mediaType || '(vazio)'} não documentado (esperado: ${Object.keys(content).join(', ')})`,
+      ];
+    }
+    const schema = componentName(media.schema.$ref, 'schemas');
+    return validateSchema(schema, check.body) ? [] : [`corpo não valida no schema ${schema}`];
   };
 }

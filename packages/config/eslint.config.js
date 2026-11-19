@@ -40,7 +40,25 @@ export default defineConfig(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
-      // Imports relativos sem extensão: os pacotes são CommonJS, onde NodeNext resolve sem `.js`.
+      // SEC-09: SQL só parametrizado. Bloqueia template string com interpolação e
+      // concatenação como primeiro argumento de query(). Identificadores dinâmicos
+      // (raros) vão numa variável montada com whitelist/escapeIdentifier e comentário.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "CallExpression[callee.property.name='query'] > TemplateLiteral.arguments:first-child[expressions.length>0]",
+          message:
+            'SQL com interpolação: use parâmetros ($1, $2) e passe os valores no array (SEC-09).',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='query'] > BinaryExpression.arguments:first-child[operator='+']",
+          message: 'SQL concatenado: use parâmetros ($1, $2) e passe os valores no array (SEC-09).',
+        },
+      ],
+      // Imports relativos sem extensão: o typecheck usa moduleResolution bundler e o build
+      // (SWC, resolveFully) acrescenta `.js` na saída ESM. ADR-0023.
       'no-restricted-imports': [
         'error',
         {

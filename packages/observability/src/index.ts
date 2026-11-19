@@ -1,3 +1,5 @@
-// @mini-banco/observability: Logger pino, correlationId (AsyncLocalStorage) e bootstrap OpenTelemetry — fases 2 e 5.
-// Esqueleto da fase 0; o conteúdo real chega na fase indicada em docs/plan.md.
-export {};
+// @mini-banco/observability: logger, contexto de correlação e middleware HTTP.
+// OpenTelemetry chega na fase 5 (ADR-0010).
+export { getCorrelationId, resolveCorrelationId, runWithCorrelationId } from './correlation';
+export { createHttpLogger, type NextFunction } from './http-logger';
+export { createLogger, REDACT_PATHS, type Logger, type LoggerOptions } from './logger';

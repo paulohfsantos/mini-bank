@@ -2,13 +2,13 @@
   "name": "@mini-banco/worker",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "Consumer SQS (NestJS standalone): antifraude e notificações — fase 3",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@mini-banco/config": "workspace:*",
-    "@types/jest": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

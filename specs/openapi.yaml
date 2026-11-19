@@ -725,6 +725,7 @@ components:
         - IDEMPOTENCY_KEY_REUSED
         - INSUFFICIENT_FUNDS
         - ACCOUNT_BUSY
+        - ROUTE_NOT_FOUND
         - INTERNAL_ERROR
 
     Problem:

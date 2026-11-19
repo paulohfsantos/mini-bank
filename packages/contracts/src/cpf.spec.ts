@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { isValidCpf, maskCpf } from './cpf';
 
 describe('isValidCpf (ACC-BR-01)', () => {

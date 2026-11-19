@@ -11,7 +11,8 @@
 
 ## Como foi verificado
 
-- [ ] `pnpm check` (lint, format, typecheck, test) verde
+- [ ] `pnpm check` (lint, format, typecheck, test, specs) verde
+- [ ] `pnpm test:integration` e `pnpm test:e2e` verdes (se tocou API, SQL ou contrato)
 - [ ] Cada AC novo/alterado tem teste que cita o ID
 - [ ] Testado manualmente (descreva):
 

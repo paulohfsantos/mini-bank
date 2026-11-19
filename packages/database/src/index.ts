@@ -1,3 +1,12 @@
-// @mini-banco/database: Pool pg, UnitOfWork, parsers de tipo e helpers de transação — fase 2.
-// Esqueleto da fase 0; o conteúdo real chega na fase indicada em docs/plan.md.
-export {};
+// @mini-banco/database: pool, transações, unidade de trabalho e ids (ADR-0004).
+export {
+  isUniqueViolation,
+  pgErrorCode,
+  PgErrorCode,
+  ResourceBusyError,
+  translatePgError,
+} from './errors';
+export { createPool, customTypes, type CreatePoolOptions } from './pool';
+export { Database, withTransaction, type TransactionOptions } from './transaction';
+export { uuidv7 } from './uuidv7';
+export type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';

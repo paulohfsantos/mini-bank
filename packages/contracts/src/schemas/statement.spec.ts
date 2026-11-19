@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { StatementQuerySchema } from './statement';
 
 describe('StatementQuerySchema (STM-BR-05, STM-BR-06)', () => {

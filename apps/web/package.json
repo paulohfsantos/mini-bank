@@ -2,13 +2,13 @@
   "name": "@mini-banco/web",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "description": "Front Next.js (App Router) — fase 4",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@mini-banco/config": "workspace:*",
-    "@types/jest": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }
