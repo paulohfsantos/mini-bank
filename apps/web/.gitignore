@@ -1,0 +1,6 @@
+# Gerado pelo next dev/build
+next-env.d.ts
+.next/
+# Playwright
+test-results/
+playwright-report/

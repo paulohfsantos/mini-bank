@@ -19,7 +19,12 @@ export default defineConfig({
       // (o esbuild do Vite não emite metadata).
       jsc: {
         parser: { syntax: 'typescript', decorators: true },
-        transform: { legacyDecorator: true, decoratorMetadata: true },
+        transform: {
+          legacyDecorator: true,
+          decoratorMetadata: true,
+          // apps/web: JSX com o runtime automático do React 19.
+          react: { runtime: 'automatic' },
+        },
         target: 'es2024',
       },
     }),
@@ -27,6 +32,13 @@ export default defineConfig({
   resolve: {
     // Pacotes do workspace apontam para src/ nesta condição (sem build prévio).
     conditions: ['development'],
+    alias: {
+      // `server-only` lança fora do bundle de servidor do Next; nos testes unitários dos
+      // módulos de servidor do apps/web ele vira um módulo vazio. A proteção real é
+      // verificada no build (WEB-AC-08).
+      'server-only': new URL('./apps/web/test/support/server-only-stub.ts', import.meta.url)
+        .pathname,
+    },
   },
   test: {
     projects: [
@@ -34,7 +46,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['{apps,packages}/*/src/**/*.spec.ts'],
+          include: ['{apps,packages}/*/src/**/*.spec.{ts,tsx}'],
           exclude: ['**/node_modules/**', '**/dist/**', '**/*.int.spec.ts'],
         },
       },
@@ -52,10 +64,23 @@ export default defineConfig({
         },
       },
       {
+        // Medições de desempenho (PERF-18): fora do CI, rodar sob demanda (pnpm bench).
+        extends: true,
+        test: {
+          name: 'bench',
+          include: ['{apps,packages}/*/test/bench/**/*.spec.ts'],
+          globalSetup: [DB_GLOBAL_SETUP, SQS_GLOBAL_SETUP],
+          testTimeout: 300_000,
+          hookTimeout: 120_000,
+        },
+      },
+      {
         extends: true,
         test: {
           name: 'e2e',
           include: ['{apps,packages}/*/test/e2e/**/*.spec.ts'],
+          // apps/web/test/e2e é Playwright (pnpm test:web), não Vitest.
+          exclude: ['**/node_modules/**', 'apps/web/**'],
           globalSetup: [DB_GLOBAL_SETUP, SQS_GLOBAL_SETUP],
           testTimeout: 30_000,
           hookTimeout: 120_000,

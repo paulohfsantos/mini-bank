@@ -132,7 +132,7 @@ Convenções usadas em todas as fases:
 - [x] Job de limpeza (no relay, a cada hora): apaga `outbox` publicados há mais de 7 dias e `idempotency_keys` expiradas, em lotes (`PERF-12`)
 - [x] Message attributes: `correlationId`, `traceparent`, `eventType`
 - [x] `apps/worker` (NestJS `createApplicationContext`): poller com long polling (`WaitTimeSeconds=20`, `MaxNumberOfMessages=10`); lote processado com concorrência limitada (`mapWithConcurrency` próprio no lugar do `p-limit`, sem dependência nova; abaixo do pool do worker; `PERF-17`); graceful shutdown: `AbortController` cancela o `ReceiveMessage` pendente e o lote em andamento termina dentro do `stopTimeout` (`PERF-19`)
-- [ ] Visibility timeout ≥ 6× o p99 de processamento; medir e ajustar os 30 s iniciais (`PERF-18`). *Pendente: o log `transfer.completed processed` já traz `durationMs`; falta medir sob carga e registrar o p99.*
+- [x] Visibility timeout ≥ 6× o p99 de processamento; medir e ajustar os 30 s iniciais (`PERF-18`). *Medido com `pnpm bench` (500 eventos, 50 contas, concorrência 5; Postgres de teste com fsync=off): processamento p95 4 ms / p99 5 ms; tempo invisível até o ack (`inFlightMs`, inclui a espera no lote) p95 9 ms / p99 18 ms; ~980 eventos/s. Os 30 s ficam: a folga sobre o p99 é enorme, mas o limite que importa é o pior caso, e ele é limitado pelos timeouts: 5 statements × `statement_timeout` de 5 s + 3 s de espera por conexão ≈ 28 s < 30 s. Repetir no RDS com Logs Insights (fase 8).*
 - [x] Pipeline do handler: validar com zod → `INSERT processed_messages ON CONFLICT DO NOTHING` (se já existe: delete e sai) → **confirmar a transferência em `transfers`** (existe, contas e valor batem; senão erro não-retentável, `SEC-14`) → `FraudRule[]` (`HighAmountRule`, `HighVelocityRule` com janela relativa a `completedAt`, `PERF-20`) → `fraud_reviews` → `notifications` → commit → `DeleteMessage`
 - [x] Classificação de erros: inválido (não-retentável) → `ChangeMessageVisibility(0)` para esgotar `maxReceiveCount` rápido; transitório → backoff exponencial via `ChangeMessageVisibility` (5 s, 10 s, 20 s...)
 - [x] Script `pnpm dlq:redrive` (usa `StartMessageMoveTask`) e `pnpm dlq:peek`. *O ElasticMQ não responde a `ListMessageMoveTasks`; o acompanhamento do redrive fica para o console/CLI da AWS.*
@@ -157,24 +157,33 @@ Convenções usadas em todas as fases:
 **Objetivo:** UI simples que demonstra App Router corretamente, não apenas um SPA dentro do Next.
 
 **Tarefas**
-- [ ] Rotas: `/accounts/new`, `/accounts/[accountId]` (saldo + extrato paginado), `/transfers/new`, `/transfers/[transferId]`
-- [ ] Server Components para leitura (`fetch` no servidor, `cache: 'no-store'` para saldo)
-- [ ] Server Actions para mutações; a `x-api-key` fica apenas em variável de ambiente do servidor (`API_KEY`, sem prefixo `NEXT_PUBLIC_`), num módulo com `import 'server-only'` (`SEC-25`)
-- [ ] Revalidar o input com zod **dentro de cada Server Action**, porque elas são endpoints POST públicos e chamáveis sem o formulário (`SEC-24`)
-- [ ] Next.js e React em versões com os CVEs recentes corrigidos (ex.: CVE-2025-29927, CVE-2025-55182); nenhuma autorização dependente só de middleware (`SEC-26`)
-- [ ] `fetch`es independentes em Server Components com `Promise.all`; `no-store` só em saldo e extrato (`PERF-23`)
-- [ ] `Idempotency-Key` gerada **uma vez por formulário renderizado** (campo hidden), de modo que um duplo clique ou retry reutiliza a mesma chave
-- [ ] Validação no cliente com os schemas zod de `packages/contracts`; erros `problem+json` mapeados para mensagens amigáveis
-- [ ] Formatação de centavos com `Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })`; o input em reais é convertido para centavos com aritmética de inteiros (sem `parseFloat * 100`)
-- [ ] `loading.tsx`, `error.tsx`, `not-found.tsx`
-- [ ] Propagação de `x-correlation-id` do servidor Next para a API
-- [ ] Testes: componentes com Testing Library; um teste e2e de fumaça com Playwright (criar 2 contas → transferir → ver extrato)
+- [x] Rotas: `/accounts/new`, `/accounts/[accountId]` (saldo + extrato paginado), `/transfers/new`, `/transfers/[transferId]`
+- [x] Server Components para leitura (`fetch` no servidor, `cache: 'no-store'` para saldo)
+- [x] Server Actions para mutações; a `x-api-key` fica apenas em variável de ambiente do servidor (`API_KEY`, sem prefixo `NEXT_PUBLIC_`), num módulo com `import 'server-only'` (`SEC-25`)
+- [x] Revalidar o input com zod **dentro de cada Server Action**, porque elas são endpoints POST públicos e chamáveis sem o formulário (`SEC-24`)
+- [x] Next.js e React em versões com os CVEs recentes corrigidos (ex.: CVE-2025-29927, CVE-2025-55182); nenhuma autorização dependente só de middleware (`SEC-26`)
+- [x] `fetch`es independentes em Server Components com `Promise.all`; `no-store` só em saldo e extrato (`PERF-23`)
+- [x] `Idempotency-Key` gerada **uma vez por formulário renderizado** (campo hidden), de modo que um duplo clique ou retry reutiliza a mesma chave
+- [x] Validação no cliente com os schemas zod de `packages/contracts`; erros `problem+json` mapeados para mensagens amigáveis
+- [x] Formatação de centavos com `Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })`; o input em reais é convertido para centavos com aritmética de inteiros (sem `parseFloat * 100`)
+- [x] `loading.tsx`, `error.tsx`, `not-found.tsx`
+- [x] Propagação de `x-correlation-id` do servidor Next para a API
+- [x] Testes: componentes com Testing Library; um teste e2e de fumaça com Playwright (criar 2 contas → transferir → ver extrato)
 
 **Entregáveis:** 4 telas funcionais contra a API local.
 
 **Critério de pronto**
 - Fluxo completo pelo navegador; duplo clique em "Transferir" gera uma única transferência.
 - DevTools → Network não mostra a API key em nenhuma requisição do browser, e um teste de CI procura a key no bundle `.next/static` e falha se encontrar.
+
+**Notas da implementação** (spec `specs/web/spec.md`, `WEB-AC-01..10`)
+- Lógica das Server Actions em `apps/web/src/server/{account,transfer}.ts` (testável); os arquivos `'use server'` só chamam e redirecionam. `readForm` rejeita campo extra, repetido ou ausente (`SEC-24`).
+- `/transfers/new` chama `await connection()`: sem isso a página poderia ser pré-renderizada no build e todos receberiam a mesma `Idempotency-Key`.
+- Duplo envio no navegador: o React enfileira o 2º envio e o descarta quando o 1º redireciona (só um POST sai). O e2e por isso **reenvia o POST capturado** (mesmo `Next-Action`, mesma chave) e confere uma única transferência; a mutação "chave nova por envio" foi pega pelo unitário e pelo e2e.
+- Comprovante sem cache do `fetch`: o `x-correlation-id` único por requisição tornaria a chave do cache única (a spec permite cache, não exige).
+- `next-env.d.ts` é regenerado pelo build apontando para `.next/types`; fica no `.gitignore` e os tipos do Next vêm de `src/next-types.d.ts`.
+- `SEC-26`: Next 16.4.6 e React 19.3.1, posteriores às correções de CVE-2025-29927 e CVE-2025-55182; sem middleware.
+- E2E (`pnpm test:web`): Playwright contra o stack local, API em :3101 e web em :3100 (não colide com o `pnpm dev`); job `web-e2e` no CI.
 
 **Prepara para responder:** Server vs Client Components? Server Actions? Onde guardar segredos no Next.js? Como evitar submissão duplicada? Cache no App Router?
 
@@ -240,7 +249,7 @@ Convenções usadas em todas as fases:
 
 **Tarefas**
 - [ ] `ci.yml` (PR): lint, typecheck, unit, integração (Testcontainers no runner), e2e, `specs:coverage`, Spectral, `terraform validate`, `pnpm audit` / Dependabot, build das imagens
-- [ ] `deploy.yml` (`workflow_dispatch` + push na `main` quando o ambiente existir), environment `lab` com proteção:
+- [ ] `deploy.yml` (`workflow_dispatch` + push na `master` quando o ambiente existir), environment `lab` com proteção:
   1. `aws-actions/configure-aws-credentials` com `role-to-assume` (OIDC, `permissions: id-token: write`)
   2. build multi-stage ARM64 (buildx), tag = `git sha`, push para o ECR
   3. scan da imagem (Trivy) com falha em CRITICAL
@@ -250,12 +259,12 @@ Convenções usadas em todas as fases:
   7. `aws amplify start-job` para o front
 - [ ] Rollback documentado: reaplicar a task definition anterior; circuit breaker do ECS com rollback habilitado
 - [ ] Migrations sempre retrocompatíveis (expand/contract), com `lock_timeout` e `CONCURRENTLY` (`PERF-15`), e documentadas no `CLAUDE.md`
-- [ ] Environment `lab` no GitHub restrito à branch `main` e com aprovação obrigatória, porque o CI é fronteira de confiança e pode rodar a task de migration com a senha master (`SEC-30`)
+- [ ] Environment `lab` no GitHub restrito à branch `master` e com aprovação obrigatória, porque o CI é fronteira de confiança e pode rodar a task de migration com a senha master (`SEC-30`)
 
 **Entregáveis:** pipeline completo e role OIDC com escopo mínimo.
 
 **Critério de pronto**
-- Um merge na `main` com o ambiente no ar chega ao ECS sem intervenção.
+- Um merge na `master` com o ambiente no ar chega ao ECS sem intervenção.
 - Mostrar no CloudTrail o `AssumeRoleWithWebIdentity` do GitHub.
 - Um PR de outro branch **não** consegue assumir a role (condição `sub`).
 

@@ -1,7 +1,16 @@
 {
   "extends": "@mini-banco/config/tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"]
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "allowJs": false,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["src", "test"]
+  "include": ["next.config.ts", "playwright.config.ts", "src", "test"],
+  "exclude": ["node_modules", ".next"]
 }

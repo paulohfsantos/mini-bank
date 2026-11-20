@@ -86,11 +86,14 @@ export class SqsConsumer {
         continue;
       }
       // O lote termina mesmo que o stop chegue no meio: não há sinal passado ao handler.
-      await mapWithConcurrency(messages, this.options.concurrency, (m) => this.process(m));
+      const receivedAt = performance.now();
+      await mapWithConcurrency(messages, this.options.concurrency, (m) =>
+        this.process(m, receivedAt),
+      );
     }
   }
 
-  private async process(message: Message): Promise<void> {
+  private async process(message: Message, receivedAt: number): Promise<void> {
     const body = message.Body ?? '';
     const attributes = message.MessageAttributes ?? {};
     const correlationId = resolveCorrelationId(
@@ -104,6 +107,16 @@ export class SqsConsumer {
       async () => {
         const decision = await this.handler.handle({ body, receiveCount });
         await this.apply(message, decision);
+        // PERF-18: tempo em que a mensagem ficou invisível antes do ack (inclui a espera
+        // na fila do lote). É este número que precisa caber no visibility timeout.
+        this.logger.debug(
+          {
+            component: 'sqs-consumer',
+            action: decision.action,
+            inFlightMs: Math.round(performance.now() - receivedAt),
+          },
+          'message acknowledged',
+        );
       },
       trace ? { traceId: trace.traceId } : {},
     );

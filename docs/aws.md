@@ -99,7 +99,7 @@ As tasks saem para a internet pelo Internet Gateway usando IP público (sem NAT)
 | CloudWatch dashboard | `mini-banco-lab` | Visão única | 1 dashboard (conferir cota gratuita) |
 | SNS | `mini-banco-lab-alarms` | Notificar alarmes | Assinatura por e-mail (confirmar no e-mail após cada apply) |
 | X-Ray | — | Tracing distribuído | Via sidecar ADOT; sampling padrão (1 req/s + 5%) |
-| Amplify Hosting | `mini-banco-web` | Next.js SSR gerenciado; a API key fica no servidor | App conectado ao repositório, `appRoot = apps/web`, branch `main` com **proteção por senha (basic auth)** (`SEC-01`), env `API_BASE_URL` = domínio do CloudFront, `API_KEY` (débito `SEC-28`: visível no console do Amplify) |
+| Amplify Hosting | `mini-banco-web` | Next.js SSR gerenciado; a API key fica no servidor | App conectado ao repositório, `appRoot = apps/web`, branch `master` com **proteção por senha (basic auth)** (`SEC-01`), env `API_BASE_URL` = domínio do CloudFront, `API_KEY` (débito `SEC-28`: visível no console do Amplify) |
 
 **Por que Amplify e não S3 + CloudFront?** S3 + CloudFront só serve um export estático. Sem servidor, as chamadas à API sairiam do browser com a API key exposta. O Amplify roda o SSR do Next.js, o que mantém Server Actions e a key no servidor. Pontos de atenção (conferir na documentação atual): a forma de expor variáveis de ambiente ao runtime SSR no Amplify e o suporte a monorepo pnpm.
 
@@ -306,7 +306,7 @@ Opcional, só quando `enable_execute_command = true` (ECS Exec para troubleshoot
 
 ### 3.4 Role do GitHub Actions: `mini-banco-github-deploy`
 
-Trust policy: só o repositório `mini-banco`, só o environment `lab` (que no GitHub pode exigir aprovação e ficar restrito à branch `main`).
+Trust policy: só o repositório `mini-banco`, só o environment `lab` (que no GitHub pode exigir aprovação e ficar restrito à branch `master`).
 
 ```json
 {
@@ -422,7 +422,7 @@ Permissões:
       "Sid": "TriggerFrontendBuild",
       "Effect": "Allow",
       "Action": "amplify:StartJob",
-      "Resource": "arn:aws:amplify:us-east-1:<account-id>:apps/*/branches/main/jobs/*"
+      "Resource": "arn:aws:amplify:us-east-1:<account-id>:apps/*/branches/master/jobs/*"
     }
   ]
 }

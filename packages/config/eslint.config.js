@@ -15,6 +15,10 @@ export default defineConfig(
     '**/coverage/**',
     '**/.terraform/**',
     '**/src/generated/**',
+    // Gerados pelo Next e pelo Playwright.
+    '**/next-env.d.ts',
+    '**/test-results/**',
+    '**/playwright-report/**',
   ]),
 
   js.configs.recommended,

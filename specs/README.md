@@ -8,6 +8,7 @@ Fonte de verdade do **comportamento** do sistema. O código implementa o que est
 | [`transfers/spec.md`](transfers/spec.md) | Transferência síncrona, idempotência, concorrência (`TRF`) |
 | [`statement/spec.md`](statement/spec.md) | Extrato paginado (`STM`) |
 | [`transfer-processing/spec.md`](transfer-processing/spec.md) | Outbox (`OBX`) e worker: antifraude e notificação (`PRC`) |
+| [`web/spec.md`](web/spec.md) | Front Next.js: telas, Server Actions, segredo só no servidor (`WEB`) |
 | [`openapi.yaml`](openapi.yaml) | Contrato REST (OpenAPI 3.1) |
 | [`events/transfer.completed.v1.schema.json`](events/transfer.completed.v1.schema.json) | Contrato do evento assíncrono (JSON Schema 2020-12) |
 

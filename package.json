@@ -15,12 +15,12 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --parallel typecheck",
     "build": "pnpm -r build",
-    "dev": "pnpm --filter @mini-banco/api --filter @mini-banco/worker --parallel dev",
+    "dev": "pnpm --filter @mini-banco/api --filter @mini-banco/worker --filter @mini-banco/web --parallel dev",
     "test": "vitest run --project unit --passWithNoTests",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm specs:check",
     "specs:lint": "spectral lint specs/openapi.yaml --fail-severity=warn",
     "specs:coverage": "node scripts/specs-coverage.mjs",
-    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM,OBX,PRC",
+    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM,OBX,PRC,WEB",
     "contracts:generate": "pnpm --filter @mini-banco/contracts generate",
     "contracts:check": "pnpm --filter @mini-banco/contracts generate:check",
     "db:migrate": "dbmate --no-dump-schema up && ./scripts/db-dump-schema.sh",
@@ -36,7 +36,10 @@
     "dev:api": "pnpm --filter @mini-banco/api dev",
     "dev:worker": "pnpm --filter @mini-banco/worker dev",
     "dlq:peek": "pnpm --filter '@mini-banco/worker...' build && pnpm --filter @mini-banco/worker run dlq peek",
-    "dlq:redrive": "pnpm --filter '@mini-banco/worker...' build && pnpm --filter @mini-banco/worker run dlq redrive"
+    "dlq:redrive": "pnpm --filter '@mini-banco/worker...' build && pnpm --filter @mini-banco/worker run dlq redrive",
+    "bench": "vitest run --project bench",
+    "dev:web": "pnpm --filter @mini-banco/web dev",
+    "test:web": "pnpm --filter '@mini-banco/api...' --filter '@mini-banco/web...' build && pnpm --filter @mini-banco/web test:e2e"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
