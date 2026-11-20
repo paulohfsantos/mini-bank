@@ -23,3 +23,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 3
+    ignore:
+      # A major do Postgres acompanha a do RDS e muda o layout do volume (a 18 usa
+      # /var/lib/postgresql/18/docker). Upgrade de major é tarefa própria, não PR automático.
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
