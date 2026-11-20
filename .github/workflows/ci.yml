@@ -48,7 +48,7 @@ jobs:
         run: pnpm test
 
       # SDD: contrato válido, tipos gerados em dia, IDs de AC citados nos testes existem e
-      # ACC/TRF/STM cobertos em todos os níveis exigidos pela spec (--require).
+      # ACC/TRF/STM/OBX/PRC/WEB cobertos em todos os níveis exigidos pela spec (--require).
       - name: Specs
         run: pnpm specs:check
 
