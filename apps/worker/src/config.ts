@@ -16,6 +16,8 @@ const EnvSchema = z
     WORKER_DB_POOL_MAX: z.coerce.number().int().min(1).max(20).default(5),
     /** PRC-NFR-02: no máximo 5 mensagens em paralelo. */
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(5).default(5),
+    /** OBS-BR-11: health HTTP do worker. */
+    WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(3002),
     SQS_QUEUE_URL: z.url(),
     AWS_REGION: z.string().min(1).default('us-east-1'),
     AWS_ENDPOINT_URL: z.url().optional(),
@@ -38,6 +40,7 @@ export interface WorkerConfig {
   };
   sqs: { queueUrl: string; region: string; endpoint?: string };
   concurrency: number;
+  healthPort: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
@@ -64,5 +67,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
       ...(e.AWS_ENDPOINT_URL ? { endpoint: e.AWS_ENDPOINT_URL } : {}),
     },
     concurrency: e.WORKER_CONCURRENCY,
+    healthPort: e.WORKER_HEALTH_PORT,
   };
 }

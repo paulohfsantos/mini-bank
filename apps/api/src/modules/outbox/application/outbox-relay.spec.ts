@@ -16,6 +16,7 @@ const event = (id: string): PendingEvent => ({
   correlationId: `c-${id}`,
   traceparent: null,
   attempts: 1,
+  createdAt: new Date(),
 });
 
 class FakeStore implements OutboxStore {

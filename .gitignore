@@ -34,3 +34,6 @@ override.tf.json
 
 # claude code (configurações locais)
 .claude/settings.local.json
+
+# start.sh (logs por etapa)
+.logs/

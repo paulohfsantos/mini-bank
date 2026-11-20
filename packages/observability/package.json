@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Logger pino com redaction, correlationId (AsyncLocalStorage) e middleware HTTP; OpenTelemetry na fase 5",
+  "description": "Logger pino com redaction, correlationId (AsyncLocalStorage), middleware HTTP e OpenTelemetry (traces e métricas)",
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -12,6 +12,10 @@
     "./testing": {
       "development": "./src/test-support/index.ts",
       "default": "./dist/test-support/index.js"
+    },
+    "./register": {
+      "development": "./src/telemetry/register.ts",
+      "default": "./dist/telemetry/register.js"
     }
   },
   "scripts": {
@@ -20,6 +24,20 @@
   },
   "dependencies": {
     "@mini-banco/contracts": "workspace:*",
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/context-async-hooks": "^3.1.1",
+    "@opentelemetry/core": "^3.1.1",
+    "@opentelemetry/exporter-prometheus": "^0.301.2",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
+    "@opentelemetry/instrumentation": "^0.301.2",
+    "@opentelemetry/instrumentation-aws-sdk": "^0.80.0",
+    "@opentelemetry/instrumentation-http": "^0.301.2",
+    "@opentelemetry/instrumentation-pg": "^0.78.0",
+    "@opentelemetry/resources": "^3.1.1",
+    "@opentelemetry/sdk-metrics": "^3.1.1",
+    "@opentelemetry/sdk-trace": "^3.1.1",
+    "@opentelemetry/semantic-conventions": "^1.45.0",
+    "import-in-the-middle": "3.6.0",
     "pino": "^10.4.0"
   },
   "devDependencies": {

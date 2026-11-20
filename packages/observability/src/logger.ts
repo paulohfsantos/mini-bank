@@ -1,6 +1,7 @@
 // Logger pino compartilhado (ADR-0011, PERF-24, SEC-21).
 import { pino, type DestinationStream, type Logger, type LevelWithSilent } from 'pino';
 import { getCorrelationId, getTraceId } from './correlation';
+import { activeSpanIds } from './telemetry/tracing';
 
 export type { Logger } from 'pino';
 
@@ -36,10 +37,16 @@ export function createLogger({ service, level = 'info', destination }: LoggerOpt
       redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
       // Toda linha emitida dentro de um contexto ganha o correlationId automaticamente,
       // a menos que a própria chamada já o informe.
+      // OBS-BR-06: com span ativo, traceId e spanId do OpenTelemetry; sem SDK, o traceId
+      // que o worker tirou do traceparent da mensagem (PRC-BR-10).
       mixin: (mergeObject) => {
         const correlationId = 'correlationId' in mergeObject ? undefined : getCorrelationId();
-        const traceId = 'traceId' in mergeObject ? undefined : getTraceId();
-        return { ...(correlationId ? { correlationId } : {}), ...(traceId ? { traceId } : {}) };
+        const fields: Record<string, string> = correlationId ? { correlationId } : {};
+        if ('traceId' in mergeObject) return fields;
+        const span = activeSpanIds();
+        if (span) return { ...fields, traceId: span.traceId, spanId: span.spanId };
+        const traceId = getTraceId();
+        return traceId ? { ...fields, traceId } : fields;
       },
     },
     // Assíncrono (sync: false): escrever log não bloqueia o event loop. O custo é poder

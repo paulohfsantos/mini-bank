@@ -24,6 +24,8 @@ const ApiKeysSchema = z
 
 const EnvSchema = z
   .object({
+    /** OBS-BR-13: em `production` o Swagger (/docs) não é montado (SEC-17). */
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3001),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
@@ -56,6 +58,8 @@ export interface ApiKeyEntry {
 }
 
 export interface AppConfig {
+  /** NODE_ENV=production: sem /docs (OBS-BR-13). */
+  production: boolean;
   port: number;
   logLevel: z.infer<typeof EnvSchema>['LOG_LEVEL'];
   apiKeys: ApiKeyEntry[];
@@ -85,6 +89,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
   const e = parsed.data;
   return {
+    production: e.NODE_ENV === 'production',
     port: e.PORT,
     logLevel: e.LOG_LEVEL,
     apiKeys: e.API_KEYS,

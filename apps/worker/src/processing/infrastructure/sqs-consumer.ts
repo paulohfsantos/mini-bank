@@ -8,7 +8,14 @@ import {
 } from '@aws-sdk/client-sqs';
 import { MESSAGE_ATTRIBUTES } from '@mini-banco/contracts';
 import { parseTraceparent } from '@mini-banco/messaging';
-import { type Logger, resolveCorrelationId, runWithCorrelationId } from '@mini-banco/observability';
+import {
+  ATTR_CORRELATION_ID,
+  type Logger,
+  resolveCorrelationId,
+  runWithCorrelationId,
+  withConsumerSpan,
+  withoutAutoInstrumentation,
+} from '@mini-banco/observability';
 import { mapWithConcurrency } from '../application/concurrency';
 import {
   type Decision,
@@ -37,6 +44,8 @@ export const DEFAULT_CONSUMER_OPTIONS: ConsumerOptions = {
 export class SqsConsumer {
   private readonly abort = new AbortController();
   private loop: Promise<void> | undefined;
+  private lastReceiveStartedAt = 0;
+  private lastReceiveFailed = false;
 
   constructor(
     private readonly client: SQSClient,
@@ -52,6 +61,18 @@ export class SqsConsumer {
     this.logger.info({ component: 'sqs-consumer', ...this.options }, 'consumer started');
   }
 
+  /**
+   * OBS-BR-11: loop rodando, último ReceiveMessage sem falha e iniciado há menos de
+   * `maxSilenceMs` (long polling de 20 s + lote de até ~28 s cabem em 60 s).
+   */
+  healthy(now = Date.now(), maxSilenceMs = 60_000): boolean {
+    return (
+      this.loop !== undefined &&
+      !this.lastReceiveFailed &&
+      now - this.lastReceiveStartedAt < maxSilenceMs
+    );
+  }
+
   async stop(): Promise<void> {
     if (!this.loop) return;
     this.abort.abort();
@@ -64,20 +85,27 @@ export class SqsConsumer {
     const { signal } = this.abort;
     while (!signal.aborted) {
       let messages: Message[];
+      this.lastReceiveStartedAt = Date.now();
       try {
-        const result = await this.client.send(
-          new ReceiveMessageCommand({
-            QueueUrl: this.queueUrl,
-            WaitTimeSeconds: this.options.waitTimeSeconds,
-            MaxNumberOfMessages: this.options.maxMessages,
-            MessageAttributeNames: ['All'],
-            MessageSystemAttributeNames: ['ApproximateReceiveCount'],
-          }),
-          { abortSignal: signal },
+        // Sem span automático: seria um trace vazio a cada 20 s de long polling. O trace
+        // de cada mensagem começa no span de processamento (OBS-BR-04).
+        const result = await withoutAutoInstrumentation(() =>
+          this.client.send(
+            new ReceiveMessageCommand({
+              QueueUrl: this.queueUrl,
+              WaitTimeSeconds: this.options.waitTimeSeconds,
+              MaxNumberOfMessages: this.options.maxMessages,
+              MessageAttributeNames: ['All'],
+              MessageSystemAttributeNames: ['ApproximateReceiveCount'],
+            }),
+            { abortSignal: signal },
+          ),
         );
         messages = result.Messages ?? [];
+        this.lastReceiveFailed = false;
       } catch (error) {
         if (signal.aborted) break;
+        this.lastReceiveFailed = true;
         this.logger.error(
           { component: 'sqs-consumer', err: { message: (error as Error).message } },
           'receive failed',
@@ -99,25 +127,42 @@ export class SqsConsumer {
     const correlationId = resolveCorrelationId(
       messageCorrelationId(attributes[MESSAGE_ATTRIBUTES.correlationId]?.StringValue, body),
     );
-    const trace = parseTraceparent(attributes[MESSAGE_ATTRIBUTES.traceparent]?.StringValue);
+    const traceparent = attributes[MESSAGE_ATTRIBUTES.traceparent]?.StringValue;
+    const trace = parseTraceparent(traceparent);
     const receiveCount = Number(message.Attributes?.ApproximateReceiveCount ?? '1');
 
     await runWithCorrelationId(
       correlationId,
-      async () => {
-        const decision = await this.handler.handle({ body, receiveCount });
-        await this.apply(message, decision);
-        // PERF-18: tempo em que a mensagem ficou invisível antes do ack (inclui a espera
-        // na fila do lote). É este número que precisa caber no visibility timeout.
-        this.logger.debug(
+      () =>
+        // OBS-BR-04: filho do span da requisição que criou a transferência. O handler
+        // nunca lança (erros viram Decision), então o span só falha em bug.
+        withConsumerSpan(
+          'transfer.completed process',
           {
-            component: 'sqs-consumer',
-            action: decision.action,
-            inFlightMs: Math.round(performance.now() - receivedAt),
+            ...(traceparent ? { traceparent } : {}),
+            attributes: {
+              [ATTR_CORRELATION_ID]: correlationId,
+              'messaging.system': 'aws_sqs',
+              'messaging.operation.type': 'process',
+              ...(message.MessageId ? { 'messaging.message.id': message.MessageId } : {}),
+            },
           },
-          'message acknowledged',
-        );
-      },
+          async (span) => {
+            const decision = await this.handler.handle({ body, receiveCount });
+            span.setAttribute('app.decision', decision.action);
+            await this.apply(message, decision);
+            // PERF-18: tempo em que a mensagem ficou invisível antes do ack (inclui a espera
+            // na fila do lote). É este número que precisa caber no visibility timeout.
+            this.logger.debug(
+              {
+                component: 'sqs-consumer',
+                action: decision.action,
+                inFlightMs: Math.round(performance.now() - receivedAt),
+              },
+              'message acknowledged',
+            );
+          },
+        ),
       trace ? { traceId: trace.traceId } : {},
     );
   }

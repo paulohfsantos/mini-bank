@@ -19,6 +19,7 @@ export class RelayRunner {
   private readonly abort = new AbortController();
   private loop: Promise<void> | undefined;
   private lastCleanup = 0;
+  private lastCycleAt = 0;
 
   constructor(
     private readonly relay: OutboxRelay,
@@ -33,8 +34,17 @@ export class RelayRunner {
   start(): void {
     if (this.loop) return;
     this.lastCleanup = Date.now(); // primeira limpeza uma hora depois do boot
+    this.lastCycleAt = Date.now(); // tolerância até o primeiro ciclo terminar
     this.loop = this.run();
     this.logger.info({ component: 'outbox-relay' }, 'outbox relay started');
+  }
+
+  /**
+   * OBS-BR-10: loop rodando e com um ciclo concluído (com ou sem eventos, com ou sem falha
+   * de envio) há menos de `maxSilenceMs`. Ciclo que lançou (banco fora) não conta.
+   */
+  healthy(now = Date.now(), maxSilenceMs = 30_000): boolean {
+    return this.loop !== undefined && now - this.lastCycleAt < maxSilenceMs;
   }
 
   async stop(): Promise<void> {
@@ -51,6 +61,7 @@ export class RelayRunner {
       let fullBatch = false;
       try {
         const result = await this.relay.runOnce();
+        this.lastCycleAt = Date.now();
         fullBatch = result.claimed === this.relay.batchSize;
         if (result.failed > 0) {
           this.logger.warn(

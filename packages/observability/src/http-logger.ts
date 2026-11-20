@@ -5,6 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HEADERS } from '@mini-banco/contracts';
 import { resolveCorrelationId, runWithCorrelationId } from './correlation';
 import type { Logger } from './logger';
+import { ATTR_CORRELATION_ID, setActiveSpanAttributes } from './telemetry/tracing';
 
 export type NextFunction = (error?: unknown) => void;
 
@@ -12,6 +13,8 @@ export function createHttpLogger(logger: Logger) {
   return (req: IncomingMessage, res: ServerResponse, next: NextFunction): void => {
     const correlationId = resolveCorrelationId(req.headers[HEADERS.correlationId]);
     res.setHeader(HEADERS.correlationId, correlationId);
+    // OBS-BR-03: no span de servidor do http (se houver), para achar o trace pelo id de negócio.
+    setActiveSpanAttributes({ [ATTR_CORRELATION_ID]: correlationId });
     const startedAt = process.hrtime.bigint();
     let logged = false;
 

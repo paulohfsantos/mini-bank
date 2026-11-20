@@ -10,8 +10,11 @@ export interface PendingEvent {
   /** Corpo do evento como gravado (jsonb), já validado no momento da escrita. */
   payload: unknown;
   correlationId: string;
+  /** OBS-BR-04: contexto da requisição que gerou o evento, repassado ao SQS como está. */
   traceparent: string | null;
   attempts: number;
+  /** Para a métrica outbox_publish_lag_ms (OBS-BR-07). */
+  createdAt: Date;
 }
 
 export interface PublishFailure {

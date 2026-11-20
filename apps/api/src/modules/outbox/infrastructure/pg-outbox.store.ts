@@ -70,7 +70,21 @@ export class PgOutboxStore implements OutboxStore {
         correlationId: r.correlation_id,
         traceparent: r.traceparent,
         attempts: r.attempts,
+        createdAt: r.created_at,
       }));
+  }
+
+  /** Gauge outbox_pending (OBS-BR-07): fora do port do relay, que não precisa dele. */
+  async countPending(timeoutMs: number): Promise<number> {
+    // Índice parcial outbox_pending_idx (WHERE published_at IS NULL): conta só o backlog.
+    const { rows } = await this.db.transaction(
+      () =>
+        this.db.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM outbox WHERE published_at IS NULL',
+        ),
+      { statementTimeoutMs: timeoutMs, lockTimeoutMs: timeoutMs },
+    );
+    return rows[0]?.n ?? 0;
   }
 
   async markPublished(ids: readonly string[]): Promise<void> {

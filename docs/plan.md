@@ -194,14 +194,23 @@ Convenções usadas em todas as fases:
 **Objetivo:** conseguir responder "o que aconteceu com a transferência X?" só com telemetria.
 
 **Tarefas**
-- [ ] OpenTelemetry Node SDK em `packages/observability` (carregado antes do Nest): **só** as instrumentações `http`, `pg`, `aws-sdk` e nest, não o pacote completo de auto-instrumentações, para não pesar no startup com 0,25 vCPU (`PERF-05`); export OTLP para o Jaeger
-- [ ] Métricas só com dimensões de baixa cardinalidade (`rule`, `reason`, `service`); nunca `accountId` nem `transferId` (`PERF-25`)
-- [ ] `/health/*` devolve só `status`, sem versões nem hosts; Swagger `/docs` desligado quando `NODE_ENV=production` (`SEC-17`)
-- [ ] Propagação manual de contexto pelo SQS: injetar `traceparent` no relay e extrair no worker (span `transfer.completed process` ligado ao trace original)
-- [ ] `traceId` e `spanId` em todos os logs pino (correlação log ↔ trace)
-- [ ] Métricas via OTel Metrics API: `transfers_completed_total`, `transfers_rejected_total{reason}`, `outbox_pending` (gauge), `outbox_publish_lag_ms`, `fraud_flagged_total{rule}`, `worker_processing_ms`; exporter Prometheus em `/metrics` localmente
-- [ ] `@nestjs/terminus`: `/health/live` (sem dependências) e `/health/ready` (Postgres + relay ativo); worker expõe o mesmo em `:3002`
-- [ ] Runbook `docs/runbooks/trace-a-transfer.md`
+- [x] OpenTelemetry Node SDK em `packages/observability` (carregado antes do Nest): **só** as instrumentações `http`, `pg`, `aws-sdk` e nest, não o pacote completo de auto-instrumentações, para não pesar no startup com 0,25 vCPU (`PERF-05`); export OTLP para o Jaeger
+- [x] Métricas só com dimensões de baixa cardinalidade (`rule`, `reason`, `service`); nunca `accountId` nem `transferId` (`PERF-25`)
+- [x] `/health/*` devolve só `status`, sem versões nem hosts; Swagger `/docs` desligado quando `NODE_ENV=production` (`SEC-17`)
+- [x] Propagação manual de contexto pelo SQS: injetar `traceparent` no relay e extrair no worker (span `transfer.completed process` ligado ao trace original)
+- [x] `traceId` e `spanId` em todos os logs pino (correlação log ↔ trace)
+- [x] Métricas via OTel Metrics API: `transfers_completed_total`, `transfers_rejected_total{reason}`, `outbox_pending` (gauge), `outbox_publish_lag_ms`, `fraud_flagged_total{rule}`, `worker_processing_ms`; exporter Prometheus em `/metrics` localmente
+- [x] ~~`@nestjs/terminus`~~ (substituído, ver notas): `/health/live` (sem dependências) e `/health/ready` (Postgres + relay ativo); worker expõe o mesmo em `:3002`
+- [x] Runbook `docs/runbooks/trace-a-transfer.md`
+
+**Notas da implementação** (spec [`observability/spec.md`](../specs/observability/spec.md), ADR-0025)
+- SDK montado à mão em `packages/observability/src/telemetry/` (sdk-trace/sdk-metrics v3, OTLP/HTTP, Prometheus) e carregado por `node --import @mini-banco/observability/register`, com o loader **síncrono** do `import-in-the-middle` restrito aos módulos instrumentados (`module.register` é depreciado no Node 26).
+- Instrumentações: `http`, `pg` (`requireParentSpan`: o polling do relay não vira trace) e `aws-sdk`. A do Nest não suporta o Nest 12: `RouteSpanInterceptor` dá ao span de servidor o nome `POST /v1/transfers` e `http.route`.
+- A instrumentação do aws-sdk sobrescreve o attribute `traceparent` do `SendMessageBatch`: o relay envia sob `suppressTracing` e cria o span `outbox publish` com links. O worker abre `transfer.completed process` como filho do span da requisição.
+- Terminus não entrou: a resposta dele detalha dependências (`SEC-17`) e o worker teria de virar app HTTP. Readiness da API = Postgres em 1 s + heartbeat do relay (< 30 s); worker = `node:http` em `:3002` com Postgres + último `ReceiveMessage` ok (< 60 s). SQS fora do ar não tira a API de `ready` (o outbox absorve).
+- `/metrics` em porta própria só em `127.0.0.1` (api 9464, worker 9465), fora do ALB e da API key.
+- Teste de sistema (`apps/api/test/e2e/telemetry-system.spec.ts`): sobe API e worker do `dist/` com o SDK, exporta para um coletor OTLP no teste e verifica o trace completo, a ausência de PII em spans, a cardinalidade das métricas e o coletor fora do ar.
+- OBS-NFR-01 (`PERF-05`), mediana de 7 boots locais até `api listening`: **214 ms sem SDK, 261 ms com SDK** (+47 ms; limite 500 ms). Repetir com 0,25 vCPU na fase 8.
 
 **Entregáveis:** traces API → Postgres → SQS → worker visíveis no Jaeger; métricas em `/metrics`.
 

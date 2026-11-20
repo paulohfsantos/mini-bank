@@ -82,3 +82,40 @@ describe('RelayRunner', () => {
     expect(runs()).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe('RelayRunner.healthy (heartbeat da readiness)', () => {
+  const opts = { intervalMs: 5, cleanupIntervalMs: 1e9 };
+
+  it('[OBS-AC-11] parado não é saudável; rodando, ciclo recente é saudável', async () => {
+    const { relay } = fakeRelay(() => Promise.resolve(empty));
+    const runner = new RelayRunner(relay, noCleanup, logger, opts);
+    expect(runner.healthy()).toBe(false);
+    runner.start();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(runner.healthy()).toBe(true);
+    await runner.stop();
+    expect(runner.healthy()).toBe(false);
+  });
+
+  it('[OBS-AC-11] sem ciclo concluído há 30 s (loop travado ou banco fora) deixa de ser saudável', async () => {
+    const { relay } = fakeRelay(() => Promise.reject(new Error('db down')));
+    const runner = new RelayRunner(relay, noCleanup, logger, opts);
+    runner.start();
+    await new Promise((r) => setTimeout(r, 20));
+    // Ciclos que lançam não renovam o heartbeat: só a tolerância do start conta.
+    expect(runner.healthy(Date.now() + 29_000)).toBe(true);
+    expect(runner.healthy(Date.now() + 31_000)).toBe(false);
+    await runner.stop();
+  });
+
+  it('[OBS-AC-11] falha de envio ao SQS conta como ciclo concluído (o outbox guarda os eventos)', async () => {
+    const failed: RelayCycleResult = { claimed: 1, published: 0, failed: 1, errors: ['SQS down'] };
+    const { relay } = fakeRelay(() => Promise.resolve(failed));
+    const runner = new RelayRunner(relay, noCleanup, logger, opts);
+    runner.start();
+    await new Promise((r) => setTimeout(r, 20));
+    const now = Date.now();
+    expect(runner.healthy(now + 29_000)).toBe(true);
+    await runner.stop();
+  });
+});

@@ -132,3 +132,48 @@ describe('mapWithConcurrency', () => {
     expect(results).toHaveLength(10);
   });
 });
+
+describe('TransferCompletedHandler: métricas (OBS-BR-07)', () => {
+  function withMetrics(execute: () => Promise<unknown>) {
+    const recorded: { outcome: string; flagged: string[] }[] = [];
+    const flagged: string[][] = [];
+    const logger = createLogger({ service: 'worker', level: 'silent' });
+    const useCase = { execute } as unknown as ProcessTransferCompletedUseCase;
+    const handler = new TransferCompletedHandler(useCase, logger, undefined, {
+      processed: (outcome) => recorded.push({ outcome, flagged: [] }),
+      flagged: (reasons) => flagged.push([...reasons]),
+    });
+    return { handler, outcomes: () => recorded.map((r) => r.outcome), flagged };
+  }
+
+  const review = (status: 'FLAGGED' | 'CLEARED', reasons: string[]) => ({
+    outcome: 'processed',
+    review: { status, reasons },
+    notifications: [],
+  });
+
+  it('[OBS-AC-08] processed + regras disparadas num FLAGGED', async () => {
+    const m = withMetrics(() => Promise.resolve(review('FLAGGED', ['HIGH_AMOUNT'])));
+    await m.handler.handle({ body: validBody, receiveCount: 1 });
+    expect(m.outcomes()).toEqual(['processed']);
+    expect(m.flagged).toEqual([['HIGH_AMOUNT']]);
+  });
+
+  it('[OBS-AC-08] CLEARED não conta fraude; duplicate, retry e reject têm outcome próprio', async () => {
+    const cleared = withMetrics(() => Promise.resolve(review('CLEARED', [])));
+    await cleared.handler.handle({ body: validBody, receiveCount: 1 });
+    expect(cleared.flagged).toEqual([]);
+
+    const dup = withMetrics(() => Promise.resolve({ outcome: 'duplicate' }));
+    await dup.handler.handle({ body: validBody, receiveCount: 1 });
+    expect(dup.outcomes()).toEqual(['duplicate']);
+
+    const retry = withMetrics(() => Promise.reject(new Error('connection terminated')));
+    await retry.handler.handle({ body: validBody, receiveCount: 1 });
+    expect(retry.outcomes()).toEqual(['retry']);
+
+    const reject = withMetrics(() => Promise.resolve({ outcome: 'duplicate' }));
+    await reject.handler.handle({ body: '{nope', receiveCount: 1 });
+    expect(reject.outcomes()).toEqual(['reject']);
+  });
+});

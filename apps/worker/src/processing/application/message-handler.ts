@@ -1,7 +1,10 @@
 import { CORRELATION_ID_PATTERN, TransferCompletedEventV1Schema } from '@mini-banco/contracts';
 import type { Logger } from '@mini-banco/observability';
 import { InvalidPayloadError, NonRetryableError, TransferMismatchError } from '../domain/errors';
+import type { ProcessingMetrics } from './ports';
 import type { ProcessTransferCompletedUseCase } from './process-transfer-completed';
+
+const NO_METRICS: ProcessingMetrics = { processed: () => undefined, flagged: () => undefined };
 
 export interface IncomingMessage {
   body: string;
@@ -56,16 +59,22 @@ export class TransferCompletedHandler {
     private readonly useCase: ProcessTransferCompletedUseCase,
     private readonly logger: Logger,
     private readonly backoff: BackoffOptions = { baseSeconds: 5, maxSeconds: 300 },
+    private readonly metrics: ProcessingMetrics = NO_METRICS,
   ) {}
 
   async handle(message: IncomingMessage): Promise<Decision> {
     const startedAt = performance.now();
+    const elapsed = () => performance.now() - startedAt;
     try {
       const event = this.parse(message.body);
       const result = await this.useCase.execute(event);
       if (result.outcome === 'duplicate') {
+        this.metrics.processed('duplicate', elapsed());
         this.logger.info({ eventId: event.eventId }, 'duplicate event skipped');
       } else {
+        // OBS-BR-07: depois do commit (o use case já retornou), nunca por tentativa desfeita.
+        this.metrics.processed('processed', elapsed());
+        if (result.review.status === 'FLAGGED') this.metrics.flagged(result.review.reasons);
         this.logger.info(
           {
             eventId: event.eventId,
@@ -80,7 +89,9 @@ export class TransferCompletedHandler {
       }
       return { action: 'delete' };
     } catch (error) {
-      return this.onError(error, message);
+      const decision = this.onError(error, message);
+      this.metrics.processed(decision.action === 'reject' ? 'reject' : 'retry', elapsed());
+      return decision;
     }
   }
 

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { createPool } from '@mini-banco/database';
 import { createSqsClient } from '@mini-banco/messaging';
-import { createLogger } from '@mini-banco/observability';
+import { createLogger, shutdownTelemetry } from '@mini-banco/observability';
 import { loadConfig } from './config';
 import { NestPinoLogger } from './nest-logger';
 import { WorkerModule } from './worker.module';
@@ -38,8 +38,14 @@ const app = await NestFactory.createApplicationContext(
     logger,
     consumer: { concurrency: config.concurrency, waitTimeSeconds: 20, maxMessages: 10 },
     ownsResources: true,
+    healthPort: config.healthPort,
+    // SDK iniciado por `--import @mini-banco/observability/register` (OBS-BR-01).
+    onShutdown: () => shutdownTelemetry(),
   }),
   { logger: new NestPinoLogger(logger), abortOnError: false },
 );
 app.enableShutdownHooks();
-logger.info({ queue: config.sqs.queueUrl.split('/').at(-1) }, 'worker running');
+logger.info(
+  { queue: config.sqs.queueUrl.split('/').at(-1), healthPort: config.healthPort },
+  'worker running',
+);

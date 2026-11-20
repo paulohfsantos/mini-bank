@@ -87,8 +87,17 @@ export function buildProblem(code: ErrorCode, detail?: string, errors?: FieldErr
   };
 }
 
+// Code da última resposta de erro, para a métrica transfers_rejected (OBS-BR-07).
+const problemCodes = new WeakMap<ServerResponse, ErrorCode>();
+
+/** Code do problem+json enviado nesta resposta, se houver. */
+export function problemCodeOf(res: ServerResponse): ErrorCode | undefined {
+  return problemCodes.get(res);
+}
+
 /** Escreve a resposta direto no node:http (usado pelo filtro do Nest e pelos middlewares). */
 export function sendProblem(res: ServerResponse, problem: Problem): void {
+  problemCodes.set(res, problem.code);
   const retryAfter = RETRY_AFTER_SECONDS[problem.code];
   if (retryAfter !== undefined) res.setHeader(HEADERS.retryAfter, String(retryAfter));
   res.statusCode = problem.status;

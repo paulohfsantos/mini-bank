@@ -64,3 +64,10 @@ export interface Notifications {
 export interface Notifier {
   notify(notification: Notification): void;
 }
+
+/** OBS-BR-07: métricas do processamento. Atributos só de conjuntos fechados (PERF-25). */
+export type ProcessingOutcome = 'processed' | 'duplicate' | 'retry' | 'reject';
+export interface ProcessingMetrics {
+  processed(outcome: ProcessingOutcome, durationMs: number): void;
+  flagged(reasons: readonly FraudReason[]): void;
+}

@@ -14,6 +14,7 @@ export const API_KEY = 'test-api-key-0123456789';
 export const OTHER_API_KEY = 'other-api-key-0123456789';
 
 export const testConfig: AppConfig = {
+  production: false,
   port: 0,
   logLevel: 'silent',
   apiKeys: [

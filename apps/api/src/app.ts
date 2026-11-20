@@ -3,8 +3,14 @@
 import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { type DynamicModule, type INestApplication, Module } from '@nestjs/common';
-import { APP_FILTER, NestFactory } from '@nestjs/core';
+import {
+  type DynamicModule,
+  type INestApplication,
+  Inject,
+  Module,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
+import { APP_FILTER, APP_INTERCEPTOR, NestFactory } from '@nestjs/core';
 import { createPool, type Pool } from '@mini-banco/database';
 import { createHttpLogger, type Logger } from '@mini-banco/observability';
 import helmet from 'helmet';
@@ -17,9 +23,14 @@ import { StatementModule } from './modules/statement/statement.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { DatabaseModule } from './shared/infrastructure/database.module';
 import { HealthController } from './shared/infrastructure/http/health.controller';
-import { createApiKeyAuth, createJsonBodyParser } from './shared/infrastructure/http/middlewares';
+import {
+  createApiKeyAuth,
+  createJsonBodyParser,
+  createTransferMetrics,
+} from './shared/infrastructure/http/middlewares';
 import { NestPinoLogger } from './shared/infrastructure/http/nest-logger';
 import { ProblemExceptionFilter } from './shared/infrastructure/http/problem.filter';
+import { RouteSpanInterceptor } from './shared/infrastructure/http/route-span.interceptor';
 import { APP_CONFIG, LOGGER } from './shared/infrastructure/http/tokens';
 
 /** specs/openapi.yaml: mesma profundidade a partir de src/ e de dist/. */
@@ -30,10 +41,20 @@ interface AppDeps {
   logger: Logger;
   pool: Pool;
   ownsPool: boolean;
+  /** Último passo do shutdown (main.ts: flush da telemetria, OBS-BR-02). */
+  onShutdown?: () => Promise<void>;
 }
 
+const ON_SHUTDOWN = Symbol('OnShutdown');
+
 @Module({})
-export class AppModule {
+export class AppModule implements OnApplicationShutdown {
+  constructor(@Inject(ON_SHUTDOWN) private readonly onShutdown: () => Promise<void>) {}
+
+  async onApplicationShutdown(): Promise<void> {
+    await this.onShutdown();
+  }
+
   static forRoot(deps: AppDeps): DynamicModule {
     return {
       module: AppModule,
@@ -49,6 +70,8 @@ export class AppModule {
         { provide: LOGGER, useValue: deps.logger },
         { provide: APP_CONFIG, useValue: deps.config },
         { provide: APP_FILTER, useClass: ProblemExceptionFilter },
+        { provide: APP_INTERCEPTOR, useClass: RouteSpanInterceptor },
+        { provide: ON_SHUTDOWN, useValue: deps.onShutdown ?? (() => Promise.resolve()) },
       ],
     };
   }
@@ -59,12 +82,14 @@ export interface CreateAppOptions {
   logger: Logger;
   /** Pool externo (testes). Sem ele, a aplicação cria e fecha o próprio. */
   pool?: Pool;
+  onShutdown?: () => Promise<void>;
 }
 
 export async function createApp({
   config,
   logger,
   pool,
+  onShutdown,
 }: CreateAppOptions): Promise<INestApplication> {
   const ownsPool = pool === undefined;
   const appPool =
@@ -84,7 +109,13 @@ export async function createApp({
     });
 
   const app = await NestFactory.create(
-    AppModule.forRoot({ config, logger, pool: appPool, ownsPool }),
+    AppModule.forRoot({
+      config,
+      logger,
+      pool: appPool,
+      ownsPool,
+      ...(onShutdown ? { onShutdown } : {}),
+    }),
     {
       bodyParser: false,
       logger: new NestPinoLogger(logger),
@@ -94,16 +125,21 @@ export async function createApp({
     },
   );
 
-  // Ordem importa (TRF-BR-13): headers de segurança → correlação/log → auth → corpo → rotas.
+  // Ordem importa (TRF-BR-13): headers de segurança → correlação/log → métricas → auth →
+  // corpo → rotas. Métricas antes da auth: um 401 em POST /v1/transfers também conta.
   app.use(helmet());
   app.use(createHttpLogger(logger));
-  app.use(createApiKeyAuth(config.apiKeys));
+  app.use(createTransferMetrics());
+  app.use(createApiKeyAuth(config.apiKeys, { publicDocs: !config.production }));
   app.use(createJsonBodyParser());
-  app.use(
-    '/docs',
-    swaggerUi.serve,
-    swaggerUi.setup(parse(readFileSync(OPENAPI_PATH, 'utf8')) as object),
-  );
+  // OBS-BR-13 / SEC-17: sem Swagger em produção (vira rota inexistente).
+  if (!config.production) {
+    app.use(
+      '/docs',
+      swaggerUi.serve,
+      swaggerUi.setup(parse(readFileSync(OPENAPI_PATH, 'utf8')) as object),
+    );
+  }
 
   app.enableShutdownHooks();
   await app.init();

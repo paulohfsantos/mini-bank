@@ -20,7 +20,7 @@
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm specs:check",
     "specs:lint": "spectral lint specs/openapi.yaml --fail-severity=warn",
     "specs:coverage": "node scripts/specs-coverage.mjs",
-    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM,OBX,PRC,WEB",
+    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM,OBX,PRC,WEB,OBS",
     "contracts:generate": "pnpm --filter @mini-banco/contracts generate",
     "contracts:check": "pnpm --filter @mini-banco/contracts generate:check",
     "db:migrate": "dbmate --no-dump-schema up && ./scripts/db-dump-schema.sh",

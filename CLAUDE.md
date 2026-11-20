@@ -24,7 +24,7 @@ Documentos de referência (fonte de verdade, nesta ordem):
 - `apps/web`: Next.js App Router. A API key só existe no servidor (Server Components/Actions).
 - `packages/contracts`: tipos gerados do OpenAPI + schemas zod + schema do evento.
 - `packages/database`: pool `pg`, `withTransaction`, `UnitOfWork`, parser `int8` → `bigint`.
-- `packages/observability`: pino, `correlationId`/`traceId` (AsyncLocalStorage), OpenTelemetry (fase 5). `./testing`: `MemoryStream` para capturar logs.
+- `packages/observability`: pino, `correlationId`/`traceId` (AsyncLocalStorage), OpenTelemetry (SDK em `src/telemetry/`, carregado por `--import @mini-banco/observability/register`), `appMetrics` (catálogo fechado). `./testing`: `MemoryStream` (logs) e `startTestTelemetry` (spans/métricas em memória).
 - `packages/messaging`: `createSqsClient` (timeouts, endpoint do ElasticMQ), `parseTraceparent`; `./testing`: ElasticMQ em container + fila/DLQ por teste (ADR-0024).
 - `packages/config`: tsconfig base, ESLint, Prettier.
 - `db/migrations/`: SQL puro (dbmate). `infra/`: Terraform (`bootstrap/` persistente, `envs/lab/` efêmero).
@@ -32,6 +32,7 @@ Documentos de referência (fonte de verdade, nesta ordem):
 ## Comandos
 
 ```bash
+./start.sh                   # tudo de uma vez: pré-requisitos → install → infra → migrations → todos os testes → pnpm dev (--no-dev | --skip-tests | --keep-going; logs em .logs/)
 pnpm install                 # instala (scripts de dependências bloqueados; ver allowBuilds)
 pnpm infra:up                # docker compose: postgres, elasticmq (SQS), jaeger
 pnpm infra:check             # verifica postgres, filas + DLQ e jaeger
@@ -40,20 +41,20 @@ pnpm lint | lint:fix
 pnpm format | format:check
 pnpm typecheck               # tsc --noEmit em cada pacote
 pnpm build                   # swc em todos os pacotes (dist/)
-pnpm dev                     # web (:3000) + api (:3001) + worker: compila, recompila ao salvar, reinicia; logs via pino-pretty (LOG_PRETTY=false = JSON cru)
+pnpm dev                     # web (:3000) + api (:3001) + worker (health :3002): compila, recompila ao salvar, reinicia; logs via pino-pretty (LOG_PRETTY=false = JSON cru); traces no Jaeger (:16686), /metrics em :9464 (api) e :9465 (worker)
 pnpm dev:web | dev:api | dev:worker  # só um deles
 pnpm dlq:peek | dlq:redrive  # inspeciona a DLQ sem consumir | devolve as mensagens à fila (StartMessageMoveTask)
 pnpm db:migrate              # dbmate up + db/schema.sql (db:rollback, db:new <nome>)
 pnpm test                    # vitest (swc), projeto unit; pnpm test:watch em modo watch
 pnpm test:integration        # Testcontainers: 1 Postgres + 1 ElasticMQ por execução; banco (TEMPLATE) e filas novos por arquivo
-pnpm test:e2e                # Supertest na app completa + respostas validadas contra o openapi.yaml
+pnpm test:e2e                # Supertest na app completa + respostas validadas contra o openapi.yaml; inclui o teste de sistema de telemetria (builda e sobe api + worker do dist/)
 pnpm test:web                # Playwright: next build + fluxo no navegador + varredura da key no .next/static (precisa de infra:up + db:migrate)
 pnpm bench                   # medições de desempenho (PERF-18), fora do CI; resultado depende da máquina
 pnpm specs:lint             # Spectral no openapi.yaml (falha em warn)
 pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=<prefixos> torna obrigatório
 pnpm contracts:generate     # regenera packages/contracts/src/generated/openapi.ts após mudar o openapi.yaml
 pnpm contracts:check        # falha se os tipos gerados estiverem desatualizados
-pnpm specs:check            # specs:lint + contracts:check + specs:coverage --require=ACC,TRF,STM,OBX,PRC,WEB
+pnpm specs:check            # specs:lint + contracts:check + specs:coverage --require=ACC,TRF,STM,OBX,PRC,WEB,OBS
 pnpm check                  # lint + format:check + typecheck + test + specs:check (rode antes de concluir)
 ```
 
@@ -147,11 +148,12 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 
 ## Estado atual
 
-- **Fases 0–4 concluídas** (fundação, specs, API, outbox + worker, front Next.js). Próxima: fase 5 (observabilidade local).
+- **Fases 0–5 concluídas** (fundação, specs, API, outbox + worker, front Next.js, observabilidade local). Próxima: fase 6 (infraestrutura AWS com Terraform).
 - Relay do outbox roda dentro da API com `OUTBOX_RELAY_ENABLED=true` (padrão `false`; testes da API o mantêm desligado). Worker: `apps/worker`, Nest standalone, papel `mini_banco_worker`.
 - `createPool` registra listener de `error`: sem ele, uma conexão ociosa derrubada pelo servidor mata o processo.
 - Pipeline HTTP (`apps/api/src/app.ts`): helmet → log/correlação → API key (antes do roteamento: 401 antes de 404) → body parser 16 KB → Nest → filtro `problem+json`. Validação com `parseOrThrow` (zod) no controller, na ordem de TRF-BR-13.
 - Testes e2e usam `bodyOf(res)`/`httpServer(app)` (`apps/api/test/support`) porque o `res.body` do Supertest é `any`.
 - Divergências intencionais entre `openapi.yaml` e zod (dígito verificador do CPF, trim do nome) estão listadas em `packages/contracts/src/contract.spec.ts`; nova divergência entra lá e na spec.
 - Web (`apps/web`): a API key só é lida em `src/server/api.ts` (`import 'server-only'`; no Vitest `server-only` é um alias vazio). Server Actions validam tudo de novo em `src/server/*.ts`. Testes de componente: `*.spec.tsx` com `// @vitest-environment jsdom`. `next-env.d.ts` é gerado (gitignored).
+- Telemetria (ADR-0025): só a API do OTel nos apps (`@mini-banco/observability`: `withConsumerSpan`, `withProducerSpan`, `currentTraceparent`, `appMetrics`); sem SDK tudo é no-op. Atributos de métrica só `reason`/`rule`/`outcome` (`PERF-25`). Chamada ao SQS que precisa preservar o `traceparent` do evento roda em `withoutAutoInstrumentation`. Instrumentação nova exige incluir o módulo em `INSTRUMENTED_MODULES` (loader ESM).
 - SQS local é **ElasticMQ** (`:9324`), não LocalStack (ADR-0022). O endpoint vem de `AWS_ENDPOINT_URL`; na AWS a variável não existe e o SDK usa o SQS real.

@@ -1,8 +1,13 @@
 import type { TransferCompletedEventV1 } from '@mini-banco/contracts';
 import type { Database } from '@mini-banco/database';
+import { currentTraceparent } from '@mini-banco/observability';
 import type { OutboxWriter } from '../application/ports';
 
-/** Transactional outbox (ADR-0006): só grava; quem publica é o OutboxRelay (fase 3). */
+/**
+ * Transactional outbox (ADR-0006): só grava; quem publica é o OutboxRelay.
+ * OBS-BR-04: guarda o traceparent do contexto ativo (o span da requisição) para o worker
+ * continuar o mesmo trace. Sem SDK fica NULL.
+ */
 export class PgOutboxWriter implements OutboxWriter {
   constructor(private readonly db: Database) {}
 
@@ -19,7 +24,7 @@ export class PgOutboxWriter implements OutboxWriter {
         event.eventType,
         JSON.stringify(event),
         event.correlationId,
-        options.traceparent ?? null,
+        options.traceparent ?? currentTraceparent() ?? null,
       ],
     );
   }

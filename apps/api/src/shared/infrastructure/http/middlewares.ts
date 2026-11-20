@@ -5,16 +5,17 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HEADERS } from '@mini-banco/contracts';
-import type { NextFunction } from '@mini-banco/observability';
+import { appMetrics, type NextFunction } from '@mini-banco/observability';
 import express from 'express';
 import type { ApiKeyEntry } from '../../../config';
-import { buildProblem, sendProblem } from './problem';
+import { buildProblem, problemCodeOf, sendProblem } from './problem';
 
 export interface AuthenticatedRequest extends IncomingMessage {
   clientId?: string;
 }
 
-const PUBLIC_PATHS = [/^\/health\/(live|ready)$/, /^\/docs(\/.*)?$/];
+const HEALTH_PATH = /^\/health\/(live|ready)$/;
+const DOCS_PATH = /^\/docs(\/.*)?$/;
 
 function sha256(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
@@ -25,11 +26,16 @@ function sha256(value: string): Buffer {
  * timingSafeEqual exige o mesmo tamanho e comparar tamanhos vazaria o comprimento da chave.
  * Percorre todas as chaves sem sair cedo.
  */
-export function createApiKeyAuth(keys: readonly ApiKeyEntry[]) {
+export function createApiKeyAuth(
+  keys: readonly ApiKeyEntry[],
+  /** OBS-BR-13: em produção /docs não existe, então também não é público. */
+  options: { publicDocs: boolean } = { publicDocs: true },
+) {
   const entries = keys.map((k) => ({ clientId: k.clientId, hash: sha256(k.key) }));
+  const publicPaths = options.publicDocs ? [HEALTH_PATH, DOCS_PATH] : [HEALTH_PATH];
   return (req: AuthenticatedRequest, res: ServerResponse, next: NextFunction): void => {
     const path = (req.url ?? '/').split('?')[0] ?? '/';
-    if (PUBLIC_PATHS.some((p) => p.test(path))) return next();
+    if (publicPaths.some((p) => p.test(path))) return next();
 
     const provided = req.headers[HEADERS.apiKey];
     let clientId: string | undefined;
@@ -64,5 +70,26 @@ export function createJsonBodyParser() {
       }
       return sendProblem(res, buildProblem('VALIDATION_ERROR', 'Corpo não é um JSON válido'));
     });
+  };
+}
+
+/**
+ * OBS-BR-07: transfers_completed (201 novo, sem replay) e transfers_rejected{reason}
+ * (4xx/5xx, reason = code do problem+json) para POST /v1/transfers. Medido na borda HTTP
+ * porque é ali que o resultado final (inclusive 401 e 413) é conhecido.
+ */
+export function createTransferMetrics() {
+  return (req: IncomingMessage, res: ServerResponse, next: NextFunction): void => {
+    const path = (req.url ?? '/').split('?')[0];
+    if (req.method === 'POST' && path === '/v1/transfers') {
+      res.once('finish', () => {
+        if (res.statusCode === 201 && res.getHeader(HEADERS.idempotentReplayed) !== 'true') {
+          appMetrics.transferCompleted();
+        } else if (res.statusCode >= 400) {
+          appMetrics.transferRejected(problemCodeOf(res) ?? 'INTERNAL_ERROR');
+        }
+      });
+    }
+    next();
   };
 }

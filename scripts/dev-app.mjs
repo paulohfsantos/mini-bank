@@ -34,10 +34,29 @@ watch(resolve(root, 'src'), { recursive: true }, (_event, file) => {
 // cru, que o CloudWatch consulta por campo (PERF-24). LOG_PRETTY=false mostra o JSON aqui.
 const pretty = process.env.LOG_PRETTY !== 'false';
 
+// OpenTelemetry (fase 5): o SDK entra por --import antes do main.js; traces vão para o
+// Jaeger do compose (OTEL_EXPORTER_OTLP_ENDPOINT do .env) e /metrics fica numa porta por app.
+const service = name.split('/').at(-1);
+const METRICS_PORTS = { api: '9464', worker: '9465' };
+const env = {
+  ...process.env,
+  OTEL_SERVICE_NAME: process.env.OTEL_SERVICE_NAME ?? service,
+  ...(METRICS_PORTS[service] && !process.env.METRICS_PORT
+    ? { METRICS_PORT: METRICS_PORTS[service] }
+    : {}),
+};
+
 const server = spawn(
   process.execPath,
-  ['--watch-path=dist', '--enable-source-maps', '--env-file-if-exists=../../.env', 'dist/main.js'],
-  { cwd: root, stdio: ['inherit', pretty ? 'pipe' : 'inherit', 'inherit'] },
+  [
+    '--watch-path=dist',
+    '--enable-source-maps',
+    '--env-file-if-exists=../../.env',
+    '--import',
+    '@mini-banco/observability/register',
+    'dist/main.js',
+  ],
+  { cwd: root, env, stdio: ['inherit', pretty ? 'pipe' : 'inherit', 'inherit'] },
 );
 
 if (pretty) {
