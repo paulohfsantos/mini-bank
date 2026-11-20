@@ -8,6 +8,10 @@
     ".": {
       "development": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "development": "./src/test-support/index.ts",
+      "default": "./dist/test-support/index.js"
     }
   },
   "scripts": {

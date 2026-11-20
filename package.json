@@ -15,12 +15,12 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --parallel typecheck",
     "build": "pnpm -r build",
-    "dev": "pnpm --filter @mini-banco/api dev",
+    "dev": "pnpm --filter @mini-banco/api --filter @mini-banco/worker --parallel dev",
     "test": "vitest run --project unit --passWithNoTests",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm specs:check",
     "specs:lint": "spectral lint specs/openapi.yaml --fail-severity=warn",
     "specs:coverage": "node scripts/specs-coverage.mjs",
-    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM",
+    "specs:check": "pnpm specs:lint && pnpm contracts:check && pnpm specs:coverage --require=ACC,TRF,STM,OBX,PRC",
     "contracts:generate": "pnpm --filter @mini-banco/contracts generate",
     "contracts:check": "pnpm --filter @mini-banco/contracts generate:check",
     "db:migrate": "dbmate --no-dump-schema up && ./scripts/db-dump-schema.sh",
@@ -32,7 +32,11 @@
     "infra:reset": "docker compose down -v && docker compose up -d --wait",
     "test:watch": "vitest --project unit",
     "test:integration": "vitest run --project integration --passWithNoTests",
-    "test:e2e": "vitest run --project e2e --passWithNoTests"
+    "test:e2e": "vitest run --project e2e --passWithNoTests",
+    "dev:api": "pnpm --filter @mini-banco/api dev",
+    "dev:worker": "pnpm --filter @mini-banco/worker dev",
+    "dlq:peek": "pnpm --filter '@mini-banco/worker...' build && pnpm --filter @mini-banco/worker run dlq peek",
+    "dlq:redrive": "pnpm --filter '@mini-banco/worker...' build && pnpm --filter @mini-banco/worker run dlq redrive"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [

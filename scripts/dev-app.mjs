@@ -1,16 +1,20 @@
-// Dev loop sem dependências extras: compila os pacotes do workspace e a API com SWC,
-// recompila a API quando src/ muda (fs.watch nativo) e deixa `node --watch` reiniciar
-// o processo quando dist/ muda. O .env da raiz é carregado pelo próprio Node.
+// Dev loop de um app (api ou worker), sem dependências extras: compila os pacotes do
+// workspace e o app com SWC, recompila quando src/ muda (fs.watch nativo) e deixa
+// `node --watch` reiniciar o processo quando dist/ muda. O .env da raiz é carregado pelo Node.
+// Uso: no package.json do app, "dev": "node ../../scripts/dev-app.mjs".
 import { execFileSync, spawn } from 'node:child_process';
 import { watch } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
-const root = resolve(import.meta.dirname, '..');
+// pnpm roda o script no diretório do app e expõe o nome do pacote.
+const root = process.cwd();
+const name = process.env.npm_package_name;
+if (!name) throw new Error('rode via pnpm (ex.: pnpm --filter @mini-banco/api dev)');
 const run = (cmd, args, cwd = root) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
 const build = () => run('pnpm', ['run', '--silent', 'build']);
 
-run('pnpm', ['--filter', '@mini-banco/api^...', 'run', 'build']);
+run('pnpm', ['--filter', `${name}^...`, 'run', 'build']);
 build();
 
 let timer;

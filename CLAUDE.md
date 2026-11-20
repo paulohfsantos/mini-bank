@@ -24,7 +24,8 @@ Documentos de referência (fonte de verdade, nesta ordem):
 - `apps/web`: Next.js App Router. A API key só existe no servidor (Server Components/Actions).
 - `packages/contracts`: tipos gerados do OpenAPI + schemas zod + schema do evento.
 - `packages/database`: pool `pg`, `withTransaction`, `UnitOfWork`, parser `int8` → `bigint`.
-- `packages/observability`: pino, `correlationId` (AsyncLocalStorage), OpenTelemetry.
+- `packages/observability`: pino, `correlationId`/`traceId` (AsyncLocalStorage), OpenTelemetry (fase 5). `./testing`: `MemoryStream` para capturar logs.
+- `packages/messaging`: `createSqsClient` (timeouts, endpoint do ElasticMQ), `parseTraceparent`; `./testing`: ElasticMQ em container + fila/DLQ por teste (ADR-0024).
 - `packages/config`: tsconfig base, ESLint, Prettier.
 - `db/migrations/`: SQL puro (dbmate). `infra/`: Terraform (`bootstrap/` persistente, `envs/lab/` efêmero).
 
@@ -39,16 +40,18 @@ pnpm lint | lint:fix
 pnpm format | format:check
 pnpm typecheck               # tsc --noEmit em cada pacote
 pnpm build                   # swc em todos os pacotes (dist/)
-pnpm dev                     # api: compila, recompila ao salvar, reinicia o node; logs via pino-pretty (LOG_PRETTY=false = JSON cru)
+pnpm dev                     # api + worker: compila, recompila ao salvar, reinicia; logs via pino-pretty (LOG_PRETTY=false = JSON cru)
+pnpm dev:api | dev:worker    # só um dos dois
+pnpm dlq:peek | dlq:redrive  # inspeciona a DLQ sem consumir | devolve as mensagens à fila (StartMessageMoveTask)
 pnpm db:migrate              # dbmate up + db/schema.sql (db:rollback, db:new <nome>)
 pnpm test                    # vitest (swc), projeto unit; pnpm test:watch em modo watch
-pnpm test:integration        # Testcontainers: 1 Postgres por execução, 1 banco por arquivo (TEMPLATE)
+pnpm test:integration        # Testcontainers: 1 Postgres + 1 ElasticMQ por execução; banco (TEMPLATE) e filas novos por arquivo
 pnpm test:e2e                # Supertest na app completa + respostas validadas contra o openapi.yaml
 pnpm specs:lint             # Spectral no openapi.yaml (falha em warn)
-pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=ACC,TRF,STM torna obrigatório
+pnpm specs:coverage         # ACs das specs × testes que citam o ID; --require=<prefixos> torna obrigatório
 pnpm contracts:generate     # regenera packages/contracts/src/generated/openapi.ts após mudar o openapi.yaml
 pnpm contracts:check        # falha se os tipos gerados estiverem desatualizados
-pnpm specs:check            # specs:lint + contracts:check + specs:coverage --require=ACC,TRF,STM
+pnpm specs:check            # specs:lint + contracts:check + specs:coverage --require=ACC,TRF,STM,OBX,PRC
 pnpm check                  # lint + format:check + typecheck + test + specs:check (rode antes de concluir)
 ```
 
@@ -142,7 +145,9 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 
 ## Estado atual
 
-- **Fases 0, 1 e 2 (API de contas, transferências e extrato) concluídas.** Próxima: fase 3 (outbox relay + worker).
+- **Fases 0–3 concluídas** (fundação, specs, API, outbox + worker). Próxima: fase 4 (front Next.js). Pendente da fase 3: medir o p99 do worker para o visibility timeout (`PERF-18`).
+- Relay do outbox roda dentro da API com `OUTBOX_RELAY_ENABLED=true` (padrão `false`; testes da API o mantêm desligado). Worker: `apps/worker`, Nest standalone, papel `mini_banco_worker`.
+- `createPool` registra listener de `error`: sem ele, uma conexão ociosa derrubada pelo servidor mata o processo.
 - Pipeline HTTP (`apps/api/src/app.ts`): helmet → log/correlação → API key (antes do roteamento: 401 antes de 404) → body parser 16 KB → Nest → filtro `problem+json`. Validação com `parseOrThrow` (zod) no controller, na ordem de TRF-BR-13.
 - Testes e2e usam `bodyOf(res)`/`httpServer(app)` (`apps/api/test/support`) porque o `res.body` do Supertest é `any`.
 - Divergências intencionais entre `openapi.yaml` e zod (dígito verificador do CPF, trim do nome) estão listadas em `packages/contracts/src/contract.spec.ts`; nova divergência entra lá e na spec.

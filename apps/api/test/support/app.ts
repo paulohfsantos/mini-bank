@@ -21,6 +21,8 @@ export const testConfig: AppConfig = {
     { clientId: 'other', key: OTHER_API_KEY },
   ],
   database: { host: '', port: 0, database: '', user: '', password: '', ssl: false, max: 10 },
+  // Relay desligado nos testes da API; os testes do relay o rodam explicitamente.
+  outbox: { enabled: false, region: 'us-east-1' },
 };
 
 export const silentLogger = createLogger({ service: 'test', level: 'silent' });

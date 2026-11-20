@@ -8,6 +8,7 @@ import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
 
 const DB_GLOBAL_SETUP = 'packages/database/src/testing/global-setup.ts';
+const SQS_GLOBAL_SETUP = 'packages/messaging/src/testing/global-setup.ts';
 
 export default defineConfig({
   plugins: [
@@ -45,7 +46,7 @@ export default defineConfig({
             '{apps,packages}/*/src/**/*.int.spec.ts',
             '{apps,packages}/*/test/integration/**/*.spec.ts',
           ],
-          globalSetup: [DB_GLOBAL_SETUP],
+          globalSetup: [DB_GLOBAL_SETUP, SQS_GLOBAL_SETUP],
           testTimeout: 30_000,
           hookTimeout: 120_000,
         },
@@ -55,7 +56,7 @@ export default defineConfig({
         test: {
           name: 'e2e',
           include: ['{apps,packages}/*/test/e2e/**/*.spec.ts'],
-          globalSetup: [DB_GLOBAL_SETUP],
+          globalSetup: [DB_GLOBAL_SETUP, SQS_GLOBAL_SETUP],
           testTimeout: 30_000,
           hookTimeout: 120_000,
         },

@@ -41,6 +41,12 @@ export interface CreatePoolOptions {
    * `mini_banco_api` mesmo conectando com o superusuário do container.
    */
   role?: string;
+  /**
+   * Erro numa conexão ociosa (Postgres reiniciou, failover do RDS, sessão encerrada).
+   * O pool já descarta a conexão; aqui só se registra. Sem listener, o `pg.Pool` emite
+   * 'error' sem ouvinte e o Node derruba o processo.
+   */
+  onIdleError?: (error: Error) => void;
 }
 
 const ROLE_NAME = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -52,6 +58,7 @@ export function createPool(options: CreatePoolOptions): pg.Pool {
     connectionTimeoutMillis = 3_000,
     idleTimeoutMillis = 10_000,
     role,
+    onIdleError = () => undefined,
     ...connection
   } = options;
 
@@ -65,7 +72,7 @@ export function createPool(options: CreatePoolOptions): pg.Pool {
     sessionOptions.push(`-c role=${role}`);
   }
 
-  return new pg.Pool({
+  const pool = new pg.Pool({
     ...connection,
     application_name: applicationName,
     connectionTimeoutMillis,
@@ -73,4 +80,6 @@ export function createPool(options: CreatePoolOptions): pg.Pool {
     options: sessionOptions.join(' '),
     types: customTypes,
   });
+  pool.on('error', onIdleError);
+  return pool;
 }

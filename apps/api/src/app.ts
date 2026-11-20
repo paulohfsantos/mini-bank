@@ -12,6 +12,7 @@ import swaggerUi from 'swagger-ui-express';
 import { parse } from 'yaml';
 import type { AppConfig } from './config';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { OutboxModule } from './modules/outbox/outbox.module';
 import { StatementModule } from './modules/statement/statement.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { DatabaseModule } from './shared/infrastructure/database.module';
@@ -41,6 +42,7 @@ export class AppModule {
         AccountsModule,
         TransfersModule,
         StatementModule,
+        OutboxModule.forRoot(deps.config.outbox, deps.logger),
       ],
       controllers: [HealthController],
       providers: [
@@ -77,6 +79,8 @@ export async function createApp({
       ssl: config.database.ssl ? { rejectUnauthorized: true } : false,
       applicationName: 'api',
       max: config.database.max,
+      onIdleError: (error) =>
+        logger.warn({ err: { message: error.message } }, 'idle database connection lost'),
     });
 
   const app = await NestFactory.create(

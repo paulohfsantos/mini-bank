@@ -124,19 +124,19 @@ Convenções usadas em todas as fases:
 **Objetivo:** integração assíncrona confiável com entrega at-least-once, consumidor idempotente e DLQ.
 
 **Tarefas**
-- [ ] `OutboxRelay` em `apps/api` com claim (`PERF-04`), em loop a cada 1 s (habilitado por `OUTBOX_RELAY_ENABLED`):
+- [x] `OutboxRelay` em `apps/api` com claim (`PERF-04`), em loop a cada 1 s (habilitado por `OUTBOX_RELAY_ENABLED`):
   1. transação curta: `UPDATE outbox SET claimed_until = now() + interval '30 seconds', attempts = attempts + 1 WHERE id IN (SELECT id FROM outbox WHERE published_at IS NULL AND (claimed_until IS NULL OR claimed_until < now()) ORDER BY created_at LIMIT 10 FOR UPDATE SKIP LOCKED) RETURNING *` e commit
   2. `SendMessageBatch` **fora da transação**, com timeout do SDK de 3 s e sem retries longos
   3. `UPDATE outbox SET published_at = now()` para os enviados; `last_error` para as falhas (voltam a ser elegíveis quando o claim expira)
   4. ao receber SIGTERM, para de fazer claims antes de fechar o pool (`PERF-22`)
-- [ ] Job de limpeza (no relay, a cada hora): apaga `outbox` publicados há mais de 7 dias e `idempotency_keys` expiradas, em lotes (`PERF-12`)
-- [ ] Message attributes: `correlationId`, `traceparent`, `eventType`
-- [ ] `apps/worker` (NestJS `createApplicationContext`): poller com long polling (`WaitTimeSeconds=20`, `MaxNumberOfMessages=10`); lote processado com concorrência limitada (ex.: `p-limit(5)`, abaixo do pool do worker; `PERF-17`); graceful shutdown: `AbortController` cancela o `ReceiveMessage` pendente e o lote em andamento termina dentro do `stopTimeout` (`PERF-19`)
-- [ ] Visibility timeout ≥ 6× o p99 de processamento; medir e ajustar os 30 s iniciais (`PERF-18`)
-- [ ] Pipeline do handler: validar com zod → `INSERT processed_messages ON CONFLICT DO NOTHING` (se já existe: delete e sai) → **confirmar a transferência em `transfers`** (existe, contas e valor batem; senão erro não-retentável, `SEC-14`) → `FraudRule[]` (`HighAmountRule`, `HighVelocityRule` com janela relativa a `completedAt`, `PERF-20`) → `fraud_reviews` → `notifications` → commit → `DeleteMessage`
-- [ ] Classificação de erros: inválido (não-retentável) → `ChangeMessageVisibility(0)` para esgotar `maxReceiveCount` rápido; transitório → backoff exponencial via `ChangeMessageVisibility` (5 s, 10 s, 20 s...)
-- [ ] Script `pnpm dlq:redrive` (usa `StartMessageMoveTask`) e `pnpm dlq:peek`
-- [ ] Testes:
+- [x] Job de limpeza (no relay, a cada hora): apaga `outbox` publicados há mais de 7 dias e `idempotency_keys` expiradas, em lotes (`PERF-12`)
+- [x] Message attributes: `correlationId`, `traceparent`, `eventType`
+- [x] `apps/worker` (NestJS `createApplicationContext`): poller com long polling (`WaitTimeSeconds=20`, `MaxNumberOfMessages=10`); lote processado com concorrência limitada (`mapWithConcurrency` próprio no lugar do `p-limit`, sem dependência nova; abaixo do pool do worker; `PERF-17`); graceful shutdown: `AbortController` cancela o `ReceiveMessage` pendente e o lote em andamento termina dentro do `stopTimeout` (`PERF-19`)
+- [ ] Visibility timeout ≥ 6× o p99 de processamento; medir e ajustar os 30 s iniciais (`PERF-18`). *Pendente: o log `transfer.completed processed` já traz `durationMs`; falta medir sob carga e registrar o p99.*
+- [x] Pipeline do handler: validar com zod → `INSERT processed_messages ON CONFLICT DO NOTHING` (se já existe: delete e sai) → **confirmar a transferência em `transfers`** (existe, contas e valor batem; senão erro não-retentável, `SEC-14`) → `FraudRule[]` (`HighAmountRule`, `HighVelocityRule` com janela relativa a `completedAt`, `PERF-20`) → `fraud_reviews` → `notifications` → commit → `DeleteMessage`
+- [x] Classificação de erros: inválido (não-retentável) → `ChangeMessageVisibility(0)` para esgotar `maxReceiveCount` rápido; transitório → backoff exponencial via `ChangeMessageVisibility` (5 s, 10 s, 20 s...)
+- [x] Script `pnpm dlq:redrive` (usa `StartMessageMoveTask`) e `pnpm dlq:peek`. *O ElasticMQ não responde a `ListMessageMoveTasks`; o acompanhamento do redrive fica para o console/CLI da AWS.*
+- [x] Testes:
   - unitários: cada `FraudRule`, classificador de erros
   - integração (Testcontainers Postgres + ElasticMQ): `OBX-AC-01..05`, `PRC-AC-01..08`
   - teste de "crash" do relay: enviar sem marcar `published_at` → evento duplicado → worker aplica uma vez

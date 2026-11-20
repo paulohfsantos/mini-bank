@@ -657,7 +657,7 @@ Com 12 sessões/mês: **≈ US$ 5–6 + < US$ 0,50 de persistentes**. O Budget d
 | Service | Env (texto) | Secrets (injetados) |
 |---|---|---|
 | api | `PORT=3001`, `LOG_LEVEL=info`, `DB_HOST`, `DB_NAME=minibanco`, `DB_SSL=verify-full`, `DB_POOL_MAX=10`, `SQS_QUEUE_URL`, `OUTBOX_RELAY_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`, `OTEL_SERVICE_NAME=mini-banco-api` | `API_DB_USER`, `API_DB_PASSWORD` (de `mini-banco/lab/db-api`, chaves JSON `username`/`password`), `API_KEYS` (`clientId:chave`, separados por vírgula) |
-| worker | `DB_HOST`, `DB_NAME`, `SQS_QUEUE_URL`, `OTEL_*`, `OTEL_SERVICE_NAME=mini-banco-worker` | `DB_USER`, `DB_PASSWORD` (de `mini-banco/lab/db-worker`) |
+| worker | `LOG_LEVEL=info`, `DB_HOST`, `DB_NAME`, `DB_SSL=verify-full`, `WORKER_DB_POOL_MAX=5`, `WORKER_CONCURRENCY=5`, `SQS_QUEUE_URL`, `OTEL_*`, `OTEL_SERVICE_NAME=mini-banco-worker` | `WORKER_DB_USER`, `WORKER_DB_PASSWORD` (de `mini-banco/lab/db-worker`) |
 | migrate | `DB_HOST`, `DB_NAME` | senha master do secret gerenciado pelo RDS |
 
 A aplicação monta a connection string a partir das partes, com `sslmode=verify-full` e `sslrootcert` apontando para o CA bundle do RDS copiado na imagem (`SEC-20`). `require` criptografaria, mas não validaria o certificado do servidor.

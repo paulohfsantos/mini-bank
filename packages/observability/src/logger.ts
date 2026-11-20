@@ -1,6 +1,6 @@
 // Logger pino compartilhado (ADR-0011, PERF-24, SEC-21).
 import { pino, type DestinationStream, type Logger, type LevelWithSilent } from 'pino';
-import { getCorrelationId } from './correlation';
+import { getCorrelationId, getTraceId } from './correlation';
 
 export type { Logger } from 'pino';
 
@@ -37,9 +37,9 @@ export function createLogger({ service, level = 'info', destination }: LoggerOpt
       // Toda linha emitida dentro de um contexto ganha o correlationId automaticamente,
       // a menos que a própria chamada já o informe.
       mixin: (mergeObject) => {
-        if ('correlationId' in mergeObject) return {};
-        const correlationId = getCorrelationId();
-        return correlationId ? { correlationId } : {};
+        const correlationId = 'correlationId' in mergeObject ? undefined : getCorrelationId();
+        const traceId = 'traceId' in mergeObject ? undefined : getTraceId();
+        return { ...(correlationId ? { correlationId } : {}), ...(traceId ? { traceId } : {}) };
       },
     },
     // Assíncrono (sync: false): escrever log não bloqueia o event loop. O custo é poder

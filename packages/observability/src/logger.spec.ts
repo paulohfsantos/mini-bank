@@ -25,6 +25,14 @@ describe('createLogger', () => {
     expect(stream.lines[1]).not.toHaveProperty('correlationId');
   });
 
+  it('[PRC-BR-10] inclui o traceId do contexto quando houver', () => {
+    const { stream, logger } = setup();
+    runWithCorrelationId('c-1', () => logger.info('com trace'), { traceId: 'a'.repeat(32) });
+    runWithCorrelationId('c-2', () => logger.info('sem trace'));
+    expect(stream.lines[0]).toMatchObject({ correlationId: 'c-1', traceId: 'a'.repeat(32) });
+    expect(stream.lines[1]).not.toHaveProperty('traceId');
+  });
+
   it('[SEC-21] mascara document, x-api-key e authorization nos níveis usuais do objeto', () => {
     const { stream, logger } = setup();
     logger.info(

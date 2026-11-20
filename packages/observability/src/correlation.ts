@@ -7,6 +7,8 @@ import { CORRELATION_ID_PATTERN } from '@mini-banco/contracts';
 
 interface CorrelationContext {
   correlationId: string;
+  /** Do `traceparent` da mensagem (PRC-BR-10); na API chega com o OpenTelemetry (fase 5). */
+  traceId?: string;
 }
 
 const storage = new AsyncLocalStorage<CorrelationContext>();
@@ -19,8 +21,16 @@ export function resolveCorrelationId(header: string | string[] | undefined): str
   return typeof header === 'string' && CORRELATION_ID_PATTERN.test(header) ? header : randomUUID();
 }
 
-export function runWithCorrelationId<T>(correlationId: string, fn: () => T): T {
-  return storage.run({ correlationId }, fn);
+export function runWithCorrelationId<T>(
+  correlationId: string,
+  fn: () => T,
+  extra: { traceId?: string } = {},
+): T {
+  return storage.run({ correlationId, ...(extra.traceId ? { traceId: extra.traceId } : {}) }, fn);
+}
+
+export function getTraceId(): string | undefined {
+  return storage.getStore()?.traceId;
 }
 
 export function getCorrelationId(): string | undefined {

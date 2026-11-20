@@ -1,0 +1,30 @@
+{
+  "name": "@mini-banco/messaging",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cliente SQS compartilhado (timeouts, endpoint local) e ElasticMQ para testes (ADR-0024)",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "development": "./src/testing/index.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "swc src -d dist --strip-leading-paths --config-file .swcrc"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.1171.0"
+  },
+  "devDependencies": {
+    "@mini-banco/config": "workspace:*",
+    "@types/node": "catalog:",
+    "testcontainers": "^12.2.1",
+    "typescript": "catalog:"
+  }
+}
