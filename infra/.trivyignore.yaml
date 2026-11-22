@@ -1,0 +1,34 @@
+# Exceções do trivy config, uma por decisão documentada. Cada uma limitada ao arquivo onde a
+# decisão vale: um achado igual em outro lugar volta a falhar o lint. Nova exceção exige
+# justificativa aqui e, se for decisão de arquitetura, ADR.
+misconfigurations:
+  - id: AWS-0104
+    paths: ['modules/security-groups/main.tf']
+    statement: >-
+      Egress 443 das tasks para a internet: sem NAT nem interface endpoints (ADR-0013, custo).
+      Só a porta 443; sem ingress da internet. Em banco: subnets privadas + PrivateLink (aws.md §10).
+  - id: AWS-0054
+    paths: ['modules/alb/main.tf']
+    statement: >-
+      Listener HTTP no ALB: TLS termina no CloudFront (ADR-0021, SEC-02); sem domínio próprio não
+      há certificado ACM para o ALB. SG restrito ao prefix list do CloudFront + header secreto.
+  - id: AWS-0053
+    paths: ['modules/alb/main.tf']
+    statement: >-
+      ALB internet-facing por ser origem do CloudFront (ADR-0021). Alcançável só pelas faixas do
+      CloudFront (SG) e só com o header de origem (listener 403).
+  - id: AWS-0011
+    paths: ['modules/edge/main.tf']
+    statement: >-
+      Sem WAF no lab (custo; ambiente ligado só durante a sessão e front com senha, SEC-01).
+      Em banco: AWS WAF + Shield Advanced (aws.md §10).
+  - id: AWS-0095
+    paths: ['modules/observability/main.tf']
+    statement: >-
+      Tópico de alarmes sem KMS: o CloudWatch não publica em tópico cifrado com a chave
+      gerenciada aws/sns, e uma CMK custa US$ 1/mês. Conteúdo: só nomes e estados de alarmes.
+  - id: AWS-0132
+    paths: ['bootstrap/main.tf']
+    statement: >-
+      Bucket de state com SSE-S3 (chave gerenciada pela AWS), privado, versionado e só com TLS
+      (SEC-33). CMK por domínio de dados é o padrão em banco (aws.md §10), não no lab.

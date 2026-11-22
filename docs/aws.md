@@ -99,7 +99,7 @@ As tasks saem para a internet pelo Internet Gateway usando IP público (sem NAT)
 | CloudWatch dashboard | `mini-banco-lab` | Visão única | 1 dashboard (conferir cota gratuita) |
 | SNS | `mini-banco-lab-alarms` | Notificar alarmes | Assinatura por e-mail (confirmar no e-mail após cada apply) |
 | X-Ray | — | Tracing distribuído | Via sidecar ADOT; sampling padrão (1 req/s + 5%) |
-| Amplify Hosting | `mini-banco-web` | Next.js SSR gerenciado; a API key fica no servidor | App conectado ao repositório, `appRoot = apps/web`, branch `master` com **proteção por senha (basic auth)** (`SEC-01`), env `API_BASE_URL` = domínio do CloudFront, `API_KEY` (débito `SEC-28`: visível no console do Amplify) |
+| Amplify Hosting | `mini-banco-web` | Next.js SSR gerenciado; a API key fica no servidor | App conectado ao repositório, `appRoot = apps/web`, branch `master` com **proteção por senha (basic auth)** (`SEC-01`), env `API_URL` = `https://<domínio do CloudFront>`, `API_KEY` (débito `SEC-28`: visível no console do Amplify e gravada no `.env.production` do build, que é como o runtime SSR a recebe). Conexão com o GitHub por token fine-grained passado só no apply (`TF_VAR_github_token`; sem token, o lab sobe sem o front) |
 
 **Por que Amplify e não S3 + CloudFront?** S3 + CloudFront só serve um export estático. Sem servidor, as chamadas à API sairiam do browser com a API key exposta. O Amplify roda o SSR do Next.js, o que mantém Server Actions e a key no servidor. Pontos de atenção (conferir na documentação atual): a forma de expor variáveis de ambiente ao runtime SSR no Amplify e o suporte a monorepo pnpm.
 
@@ -321,7 +321,7 @@ Trust policy: só o repositório `mini-banco`, só o environment `lab` (que no G
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:<github-owner>/mini-banco:environment:lab"
+          "token.actions.githubusercontent.com:sub": "repo:<github-owner>/<github-repo>:environment:lab"
         }
       }
     }
@@ -512,21 +512,35 @@ Decisões:
 ```bash
 aws sso login --profile mini-banco
 export AWS_PROFILE=mini-banco AWS_REGION=us-east-1
+export TF_VAR_alarm_email=...            # fora do git
+export TF_VAR_github_token=...           # opcional: sem ele o lab sobe sem o front (Amplify)
 
+./scripts/lab.sh up --push               # ~15–25 min na primeira vez da sessão
+```
+
+O `up` faz, parando na primeira falha (com o log da etapa e uma dica):
+
+1. Pré-requisitos: sessão AWS, bucket de state do bootstrap, Terraform na versão de `infra/.terraform-version` (local ou em container, com credenciais temporárias exportadas da sessão SSO).
+2. Imagens do HEAD no ECR (`--push` faz build e push se faltarem).
+3. `terraform apply` com os services em **0** tasks: os papéis do banco ainda não têm LOGIN (ADR-0026). Subir as tasks antes faria a API falhar o readiness em loop e o circuit breaker marcar o primeiro deploy como falho, sem versão anterior para rollback.
+4. `scripts/run-migration.sh`: `dbmate up` + LOGIN e senha dos papéis, de dentro da VPC.
+5. `terraform apply` com os services em **1** e espera até ficarem estáveis.
+6. Smoke: `GET https://<cloudfront>/health/ready` = 200 (aguarda a propagação), API sem key = 401, ALB direto **sem resposta** (SG descarta).
+7. Dispara o build do front no Amplify, se houver.
+
+Depois: confirmar a assinatura SNS no e-mail (necessária a cada apply). `./scripts/lab.sh status` mostra tasks e health. Na fase 7 o deploy de código novo durante a sessão passa a ser o `deploy.yml`; até lá, `./scripts/lab.sh up --push` de novo (idempotente).
+
+Passo a passo manual equivalente (para entender ou depurar):
+
+```bash
+./scripts/push-images.sh
 cd infra/envs/lab
-terraform init
-terraform apply -var "image_tag=$(../../../scripts/latest-image-tag.sh)"
-# ~10–15 min (o RDS é o mais lento)
-
-# Confirmar a assinatura SNS no e-mail (necessário a cada apply)
-
-# Deploy da aplicação: pelo GitHub
-gh workflow run deploy.yml -f environment=lab
-# ou, se a imagem já existe e só falta migrar:
+terraform init -backend-config="bucket=mini-banco-tfstate-$(aws sts get-caller-identity --query Account --output text)"
+terraform apply -var "image_tag=$(../../../scripts/latest-image-tag.sh)" -var desired_count=0
 ../../../scripts/run-migration.sh
-
+terraform apply -var "image_tag=$(../../../scripts/latest-image-tag.sh)" -var desired_count=1
 curl -s "https://$(terraform output -raw api_cloudfront_domain)/health/ready"   # 200
-curl -s -o /dev/null -w '%{http_code}\n' "http://$(terraform output -raw alb_dns)/health/ready"  # deve falhar (SG)
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 "http://$(terraform output -raw alb_dns)/health/ready"  # 000 (SG)
 ```
 
 > CloudFront leva alguns minutos para propagar no `apply` e para desabilitar/remover no `destroy`. Isso entra no tempo de cada sessão.
@@ -534,9 +548,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "http://$(terraform output -raw alb_dns
 ### Fim da sessão
 
 ```bash
-cd infra/envs/lab
-terraform destroy -var "image_tag=$(../../../scripts/latest-image-tag.sh)"
-../../../scripts/session-end-check.sh
+./scripts/lab.sh down        # terraform destroy + scripts/session-end-check.sh (repete após 2 min se a API de tagging atrasar)
 ```
 
 ### Checklist de fim de sessão
@@ -656,11 +668,11 @@ Com 12 sessões/mês: **≈ US$ 5–6 + < US$ 0,50 de persistentes**. O Budget d
 
 | Service | Env (texto) | Secrets (injetados) |
 |---|---|---|
-| api | `PORT=3001`, `LOG_LEVEL=info`, `DB_HOST`, `DB_NAME=minibanco`, `DB_SSL=verify-full`, `DB_POOL_MAX=10`, `SQS_QUEUE_URL`, `OUTBOX_RELAY_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`, `OTEL_SERVICE_NAME=mini-banco-api` | `API_DB_USER`, `API_DB_PASSWORD` (de `mini-banco/lab/db-api`, chaves JSON `username`/`password`), `API_KEYS` (`clientId:chave`, separados por vírgula) |
-| worker | `LOG_LEVEL=info`, `DB_HOST`, `DB_NAME`, `DB_SSL=verify-full`, `WORKER_DB_POOL_MAX=5`, `WORKER_CONCURRENCY=5`, `SQS_QUEUE_URL`, `OTEL_*`, `OTEL_SERVICE_NAME=mini-banco-worker` | `WORKER_DB_USER`, `WORKER_DB_PASSWORD` (de `mini-banco/lab/db-worker`) |
-| migrate | `DB_HOST`, `DB_NAME` | senha master do secret gerenciado pelo RDS |
+| api | `NODE_ENV=production` (sem `/docs`), `PORT=3001`, `LOG_LEVEL=info`, `DB_HOST`, `DB_PORT`, `DB_NAME=minibanco`, `DB_SSL=verify-full`, `DB_SSL_CA_FILE=/app/certs/rds-global-bundle.pem`, `DB_POOL_MAX=10`, `SQS_QUEUE_URL`, `OUTBOX_RELAY_ENABLED=true`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` (OTLP/HTTP, o exporter do SDK), `OTEL_SERVICE_NAME=mini-banco-api`, `METRICS_PORT=9464` (scrape do ADOT), `NODE_OPTIONS=--max-old-space-size=460` | `API_DB_USER`, `API_DB_PASSWORD` (de `mini-banco/lab/db-api`, chaves JSON `username`/`password`), `API_KEYS` (`clientId:chave`, separados por vírgula) |
+| worker | `LOG_LEVEL=info`, `DB_*` (idem), `WORKER_DB_POOL_MAX=5`, `WORKER_CONCURRENCY=5`, `WORKER_HEALTH_PORT=3002`, `SQS_QUEUE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME=mini-banco-worker`, `METRICS_PORT=9465`, `NODE_OPTIONS` | `WORKER_DB_USER`, `WORKER_DB_PASSWORD` (de `mini-banco/lab/db-worker`) |
+| migrate | `DB_*` (`command = node dist/migrate.js`, mesma imagem da api) | `MASTER_DB_USER`/`MASTER_DB_PASSWORD` (secret master gerenciado pelo RDS), `API_DB_PASSWORD`, `WORKER_DB_PASSWORD` (para o `ALTER ROLE ... LOGIN PASSWORD`, ADR-0026) |
 
-A aplicação monta a connection string a partir das partes, com `sslmode=verify-full` e `sslrootcert` apontando para o CA bundle do RDS copiado na imagem (`SEC-20`). `require` criptografaria, mas não validaria o certificado do servidor.
+A aplicação conecta com TLS `verify-full`: `dbTlsOptions` (`packages/database`) lê o CA bundle do RDS copiado na imagem (`infra/certs/rds-global-bundle.pem`) e o Node confere cadeia e hostname; o dbmate recebe `sslmode=verify-full&sslrootcert=...` (`SEC-20`). `require` criptografaria, mas não validaria o certificado do servidor. Sem `DB_SSL_CA_FILE` com `verify-full`, o processo nem sobe.
 
 ---
 

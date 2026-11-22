@@ -85,7 +85,7 @@ SQS fora do ar **não** derruba o `ready` da API: o outbox guarda os eventos e o
 
 ## Na AWS (fases 6 e 8)
 
-Mesmo código: traces OTLP → sidecar ADOT → X-Ray (para buscar por `app.correlation_id`, o ADOT precisa indexá-lo como anotação; configurar na fase 8); logs no CloudWatch Logs Insights:
+Mesmo código: traces OTLP → sidecar ADOT → X-Ray. O ADOT indexa `app.correlation_id` como anotação (`infra/envs/lab/adot-config.yaml.tftpl`), então a busca no X-Ray é `annotation.app_correlation_id = "c-123"` (o X-Ray troca `.` por `_`; conferir no console). Logs no CloudWatch Logs Insights:
 
 ```
 fields @timestamp, service, msg, traceId, transferId

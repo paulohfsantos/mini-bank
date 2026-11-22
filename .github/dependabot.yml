@@ -30,3 +30,24 @@ updates:
       # /var/lib/postgresql/18/docker). Upgrade de major é tarefa própria, não PR automático.
       - dependency-name: postgres
         update-types: ['version-update:semver-major']
+
+  # Providers do Terraform (lock files de bootstrap e lab). Versões fixadas com ~> no patch:
+  # cada minor nova chega por PR, depois do cooldown.
+  - package-ecosystem: terraform
+    directories: ['/infra/bootstrap', '/infra/envs/lab']
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+
+  # Imagem base do Dockerfile (node:<versão>-bookworm-slim).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 14
+    ignore:
+      # A major do Node acompanha o .nvmrc; upgrade de major é tarefa própria.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']

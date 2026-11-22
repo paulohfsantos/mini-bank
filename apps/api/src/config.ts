@@ -1,4 +1,5 @@
 // Configuração lida do ambiente uma vez, validada com zod: falha no boot, não na primeira requisição.
+import type { DbSslMode } from '@mini-banco/database';
 import { z } from 'zod';
 
 const ApiKeysSchema = z
@@ -35,8 +36,9 @@ const EnvSchema = z
     DB_NAME: z.string().min(1),
     API_DB_USER: z.string().min(1),
     API_DB_PASSWORD: z.string().min(1),
-    /** `verify-full` na AWS (CA do RDS no container, fase 6); `disable` local. */
+    /** `verify-full` na AWS com o CA bundle do RDS na imagem (SEC-20); `disable` local. */
     DB_SSL: z.enum(['disable', 'verify-full']).default('disable'),
+    DB_SSL_CA_FILE: z.string().min(1).optional(),
     DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
     /** `clientId:chave` separados por vírgula. O clientId escopa as chaves de idempotência (TRF-BR-08). */
     API_KEYS: ApiKeysSchema,
@@ -46,6 +48,10 @@ const EnvSchema = z
     AWS_REGION: z.string().min(1).default('us-east-1'),
     /** Só local (ElasticMQ, ADR-0022). Na AWS fica ausente e o SDK usa o SQS real. */
     AWS_ENDPOINT_URL: z.url().optional(),
+  })
+  .refine((e) => e.DB_SSL === 'disable' || e.DB_SSL_CA_FILE !== undefined, {
+    path: ['DB_SSL_CA_FILE'],
+    message: 'obrigatória quando DB_SSL=verify-full (SEC-20)',
   })
   .refine((e) => e.OUTBOX_RELAY_ENABLED === 'false' || e.SQS_QUEUE_URL !== undefined, {
     path: ['SQS_QUEUE_URL'],
@@ -69,7 +75,8 @@ export interface AppConfig {
     database: string;
     user: string;
     password: string;
-    ssl: boolean;
+    ssl: DbSslMode;
+    sslCaFile?: string;
     max: number;
   };
   outbox: {
@@ -99,7 +106,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
       database: e.DB_NAME,
       user: e.API_DB_USER,
       password: e.API_DB_PASSWORD,
-      ssl: e.DB_SSL === 'verify-full',
+      ssl: e.DB_SSL,
+      ...(e.DB_SSL_CA_FILE ? { sslCaFile: e.DB_SSL_CA_FILE } : {}),
       max: e.DB_POOL_MAX,
     },
     outbox: {

@@ -1,0 +1,16 @@
+# Contexto mínimo do build (Dockerfile na raiz). Segredos e artefatos locais nunca entram.
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/test-results
+**/playwright-report
+.git
+.github
+.logs
+.env
+.env.*
+!.env.example
+infra/**/.terraform
+**/*.tfstate*
+docs

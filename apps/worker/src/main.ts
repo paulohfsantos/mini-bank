@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
-import { createPool } from '@mini-banco/database';
+import { createPool, dbTlsOptions } from '@mini-banco/database';
 import { createSqsClient } from '@mini-banco/messaging';
 import { createLogger, shutdownTelemetry } from '@mini-banco/observability';
 import { loadConfig } from './config';
@@ -16,7 +16,7 @@ const pool = createPool({
   database: config.database.database,
   user: config.database.user,
   password: config.database.password,
-  ssl: config.database.ssl ? { rejectUnauthorized: true } : false,
+  ssl: dbTlsOptions(config.database.ssl, config.database.sslCaFile),
   applicationName: 'worker',
   max: config.database.max,
   onIdleError: (error) =>

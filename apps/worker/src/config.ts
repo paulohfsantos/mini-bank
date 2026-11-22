@@ -1,4 +1,5 @@
 // Configuração do worker, validada no boot (mesmo padrão da API).
+import type { DbSslMode } from '@mini-banco/database';
 import { z } from 'zod';
 
 const EnvSchema = z
@@ -11,7 +12,9 @@ const EnvSchema = z
     DB_NAME: z.string().min(1),
     WORKER_DB_USER: z.string().min(1),
     WORKER_DB_PASSWORD: z.string().min(1),
+    /** `verify-full` na AWS com o CA bundle do RDS na imagem (SEC-20); `disable` local. */
     DB_SSL: z.enum(['disable', 'verify-full']).default('disable'),
+    DB_SSL_CA_FILE: z.string().min(1).optional(),
     /** PERF-02: 5 no worker. */
     WORKER_DB_POOL_MAX: z.coerce.number().int().min(1).max(20).default(5),
     /** PRC-NFR-02: no máximo 5 mensagens em paralelo. */
@@ -21,6 +24,10 @@ const EnvSchema = z
     SQS_QUEUE_URL: z.url(),
     AWS_REGION: z.string().min(1).default('us-east-1'),
     AWS_ENDPOINT_URL: z.url().optional(),
+  })
+  .refine((e) => e.DB_SSL === 'disable' || e.DB_SSL_CA_FILE !== undefined, {
+    path: ['DB_SSL_CA_FILE'],
+    message: 'obrigatória quando DB_SSL=verify-full (SEC-20)',
   })
   .refine((e) => e.WORKER_CONCURRENCY <= e.WORKER_DB_POOL_MAX, {
     path: ['WORKER_CONCURRENCY'],
@@ -35,7 +42,8 @@ export interface WorkerConfig {
     database: string;
     user: string;
     password: string;
-    ssl: boolean;
+    ssl: DbSslMode;
+    sslCaFile?: string;
     max: number;
   };
   sqs: { queueUrl: string; region: string; endpoint?: string };
@@ -58,7 +66,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
       database: e.DB_NAME,
       user: e.WORKER_DB_USER,
       password: e.WORKER_DB_PASSWORD,
-      ssl: e.DB_SSL === 'verify-full',
+      ssl: e.DB_SSL,
+      ...(e.DB_SSL_CA_FILE ? { sslCaFile: e.DB_SSL_CA_FILE } : {}),
       max: e.WORKER_DB_POOL_MAX,
     },
     sqs: {

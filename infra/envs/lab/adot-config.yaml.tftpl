@@ -1,0 +1,52 @@
+# Sidecar ADOT (ADR-0010). Traces: OTLP/HTTP da app → X-Ray. Métricas: scrape do /metrics da
+# app (127.0.0.1, mesmo network namespace da task) → EMF no CloudWatch Logs.
+extensions:
+  health_check: {}
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: ${service}
+          scrape_interval: 60s
+          static_configs:
+            - targets: ['127.0.0.1:${metrics_port}']
+processors:
+  # PERF-21: o collector recusa dados antes de estourar o limite do container.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: ${memory_limit_mib}
+    spike_limit_mib: ${spike_limit_mib}
+  batch:
+    timeout: 10s
+exporters:
+  awsxray:
+    region: ${region}
+    # Vira anotação no X-Ray: busca do trace pelo correlationId (runbook trace-a-transfer).
+    indexed_attributes: [app.correlation_id]
+  awsemf:
+    region: ${region}
+    namespace: MiniBanco
+    log_group_name: ${metrics_log_group}
+    log_stream_name: ${service}
+    resource_to_telemetry_conversion:
+      enabled: false
+    dimension_rollup_option: NoDimensionRollup
+    # PERF-25: só o catálogo fechado e só as dimensões de baixa cardinalidade.
+    metric_declarations:
+      - dimensions: [[reason], [rule], [outcome], []]
+        metric_name_selectors: ['^(transfers_|outbox_|fraud_|worker_)']
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [awsxray]
+    metrics:
+      receivers: [prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [awsemf]

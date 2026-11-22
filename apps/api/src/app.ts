@@ -11,7 +11,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR, NestFactory } from '@nestjs/core';
-import { createPool, type Pool } from '@mini-banco/database';
+import { createPool, dbTlsOptions, type Pool } from '@mini-banco/database';
 import { createHttpLogger, type Logger } from '@mini-banco/observability';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
@@ -100,8 +100,8 @@ export async function createApp({
       database: config.database.database,
       user: config.database.user,
       password: config.database.password,
-      // verify-full: valida certificado e hostname (CA do RDS entra na fase 6).
-      ssl: config.database.ssl ? { rejectUnauthorized: true } : false,
+      // verify-full: valida certificado (CA bundle do RDS) e hostname (SEC-20).
+      ssl: dbTlsOptions(config.database.ssl, config.database.sslCaFile),
       applicationName: 'api',
       max: config.database.max,
       onIdleError: (error) =>

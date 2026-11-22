@@ -37,3 +37,10 @@ override.tf.json
 
 # start.sh (logs por etapa)
 .logs/
+
+# terraform: cache de providers/plugins do scripts/infra-lint.sh
+infra/.cache/
+**/.terraform.lock.hcl.bak
+
+# terraform test nos módulos: lock gerado só para o teste (as versões valem nos roots)
+infra/modules/*/.terraform.lock.hcl

@@ -228,18 +228,30 @@ Convenções usadas em todas as fases:
 
 **Tarefas**
 - [ ] Setup seguro da conta (`aws.md` §7): MFA no root, IAM Identity Center, Budgets e Cost Anomaly Detection
-- [ ] `infra/bootstrap`: bucket de state (versionado, criptografado, bloqueio público), OIDC provider do GitHub, role `mini-banco-github-deploy`, repositórios ECR (`IMMUTABLE`, scan on push, lifecycle mantendo 10 imagens), Budget com e-mail
-- [ ] `infra/modules`: `network`, `security-groups`, `alb`, `ecs-cluster`, `ecs-service` (reutilizado por api e worker), `rds`, `sqs`, `secrets`, `observability`, `amplify-web`
-- [ ] `infra/envs/lab`: composição dos módulos; backend S3 com `use_lockfile = true`; `default_tags` (`Project=mini-banco`, `Env=lab`, `ManagedBy=terraform`)
-- [ ] TLS e borda (`SEC-02`): CloudFront na frente do ALB com header secreto de origem (`random_password`); listener do ALB responde 403 sem o header; `sg-alb` aceita apenas o managed prefix list `com.amazonaws.global.cloudfront.origin-facing`
-- [ ] Amplify com **proteção por senha do branch** (`SEC-01`) e `API_BASE_URL` apontando para o domínio do CloudFront
-- [ ] RDS: parameter group com `rds.force_ssl = 1`; app conecta com `sslmode=verify-full` e o CA bundle do RDS copiado na imagem (`SEC-20`)
-- [ ] Tasks: `--max-old-space-size` ~60% da memória do container da app, `memory_limiter` no ADOT, limites por container (`PERF-21`); `healthCheckGracePeriodSeconds = 60` (`PERF-05`); `minimumHealthyPercent = 100`, `maximumPercent = 200`, deregistration delay 10 s (`PERF-22`); `enable_execute_command = false` por padrão (`SEC-34`); usuário não-root e `readonlyRootFilesystem` (`SEC-35`)
-- [ ] Alarme de `CPUCreditBalance` / `CPUSurplusCreditsCharged` do RDS (`PERF-13`)
-- [ ] Task definition de migration (`mini-banco-lab-migrate`) usando a imagem da api com `command` = `dbmate up`
-- [ ] Outputs gravados no SSM Parameter Store (`/mini-banco/lab/*`) para o CI
-- [ ] `tflint`, `terraform fmt -check`, `terraform validate` e `checkov` (ou `trivy config`) no CI
-- [ ] `scripts/session-end-check.sh` (busca recursos com a tag `Project=mini-banco` e alerta)
+- [x] `infra/bootstrap`: bucket de state (versionado, criptografado, bloqueio público), OIDC provider do GitHub, role `mini-banco-github-deploy`, repositórios ECR (`IMMUTABLE`, scan on push, lifecycle mantendo 10 imagens), Budget com e-mail
+- [x] `infra/modules`: `network`, `security-groups`, `alb`, `ecs-cluster`, `ecs-service` (reutilizado por api e worker), `rds`, `sqs`, `secrets`, `observability`, `amplify-web`
+- [x] `infra/envs/lab`: composição dos módulos; backend S3 com `use_lockfile = true`; `default_tags` (`Project=mini-banco`, `Env=lab`, `ManagedBy=terraform`)
+- [x] TLS e borda (`SEC-02`): CloudFront na frente do ALB com header secreto de origem (`random_password`); listener do ALB responde 403 sem o header; `sg-alb` aceita apenas o managed prefix list `com.amazonaws.global.cloudfront.origin-facing`
+- [x] Amplify com **proteção por senha do branch** (`SEC-01`) e `API_URL` apontando para o domínio do CloudFront
+- [x] RDS: parameter group com `rds.force_ssl = 1`; app conecta com `sslmode=verify-full` e o CA bundle do RDS copiado na imagem (`SEC-20`)
+- [x] Tasks: `--max-old-space-size` ~60% da memória do container da app, `memory_limiter` no ADOT, limites por container (`PERF-21`); `healthCheckGracePeriodSeconds = 60` (`PERF-05`); `minimumHealthyPercent = 100`, `maximumPercent = 200`, deregistration delay 10 s (`PERF-22`); `enable_execute_command = false` por padrão (`SEC-34`); usuário não-root e `readonlyRootFilesystem` (`SEC-35`)
+- [x] Alarme de `CPUCreditBalance` / `CPUSurplusCreditsCharged` do RDS (`PERF-13`)
+- [x] Task definition de migration (`mini-banco-lab-migrate`) usando a imagem da api com `command` = `node dist/migrate.js` (`dbmate up` + LOGIN dos papéis de aplicação, ADR-0026)
+- [x] Outputs gravados no SSM Parameter Store (`/mini-banco/lab/*`) para o CI
+- [x] `tflint`, `terraform fmt -check`, `terraform validate` e `trivy config` no CI
+- [x] `scripts/session-end-check.sh` (busca recursos com a tag `Project=mini-banco` e alerta)
+
+**Estado (2026-11-20):** código pronto e validado **sem tocar na AWS**. `pnpm infra:lint` (fmt, validate dos dois roots, tflint, trivy em containers fixados) verde; imagens ARM64 construídas e testadas localmente (read-only, não-root, migration + transferência ponta a ponta numa rede Docker isolada). Pendentes, que dependem do humano: setup da conta (§7 do `aws.md`), `terraform apply` do bootstrap e do lab e o roteiro do critério de pronto abaixo.
+
+Notas de implementação:
+- Imagem única multi-stage (`Dockerfile`, targets `api` e `worker`), `node:26.13.0-bookworm-slim`, `USER node`; o CA bundle do RDS fica versionado em `infra/certs/` (sem download no build). A imagem da api leva o binário do dbmate e roda a migration (ADR-0026).
+- `DB_SSL=verify-full` exige `DB_SSL_CA_FILE` (`dbTlsOptions`, `SEC-20`); a imagem já define os dois.
+- Os papéis `mini_banco_api`/`mini_banco_worker` ganham LOGIN e senha (do Secrets Manager) na task de migration, por uma função `pg_temp` com parâmetros: nada de senha montada em SQL (`SEC-09`).
+- ADOT: sidecar não essencial (telemetria fora do ar não derruba a task, OBS-BR-02), OTLP/HTTP em `127.0.0.1:4318`, scrape do `/metrics` → EMF só com o catálogo e dimensões `reason`/`rule`/`outcome` (`PERF-25`), `app.correlation_id` indexado no X-Ray.
+- Providers fixados em `~> 6.72.0` (AWS) com lock file para darwin/linux arm64 e linux amd64; Dependabot (terraform, docker) com cooldown de 14 dias.
+- Exceções do trivy, cada uma com justificativa e restrita a um arquivo: `infra/.trivyignore.yaml`.
+- `terraform test` com `mock_provider` em 7 módulos e nos 2 roots (28 casos, IDs `SEC-02`, `SEC-20`, `SEC-33`, `SEC-34`, `SEC-35`, `PERF-01`, `PERF-05`, `PERF-21`, `PERF-22`, `PERF-25`), dentro do `pnpm infra:lint`; teste de mutação confirmou que cada trava quebrada derruba um caso.
+- `scripts/lab.sh up|down|status` executa o critério de pronto: services em 0 → migration → services em 1 → smoke (CloudFront 200, sem key 401, ALB direto sem resposta). Fluxo de sucesso e de falha testado com `aws`/`terraform`/`curl` simulados; o modo Terraform em container com credenciais exportadas só será exercitado no primeiro apply real.
 
 **Entregáveis:** `terraform apply` sobe o ambiente; `terraform destroy` remove tudo exceto o bootstrap.
 

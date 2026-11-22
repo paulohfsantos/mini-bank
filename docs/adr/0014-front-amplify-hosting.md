@@ -16,7 +16,7 @@ O front usa Server Components e Server Actions para manter a API key no servidor
 
 ## Decisão
 
-Amplify Hosting com SSR, `appRoot = apps/web`, proteção por senha do branch. `API_BASE_URL` aponta para o CloudFront da API. Conferir na documentação atual: variáveis de ambiente no runtime SSR e suporte a monorepo pnpm.
+Amplify Hosting com SSR, `appRoot = apps/web`, proteção por senha do branch. `API_URL` aponta para o CloudFront da API (nome da variável lida em `apps/web/src/server/api.ts`). Conferir na documentação atual: variáveis de ambiente no runtime SSR e suporte a monorepo pnpm.
 
 ## Consequências
 

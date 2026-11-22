@@ -27,7 +27,7 @@ Documentos de referência (fonte de verdade, nesta ordem):
 - `packages/observability`: pino, `correlationId`/`traceId` (AsyncLocalStorage), OpenTelemetry (SDK em `src/telemetry/`, carregado por `--import @mini-banco/observability/register`), `appMetrics` (catálogo fechado). `./testing`: `MemoryStream` (logs) e `startTestTelemetry` (spans/métricas em memória).
 - `packages/messaging`: `createSqsClient` (timeouts, endpoint do ElasticMQ), `parseTraceparent`; `./testing`: ElasticMQ em container + fila/DLQ por teste (ADR-0024).
 - `packages/config`: tsconfig base, ESLint, Prettier.
-- `db/migrations/`: SQL puro (dbmate). `infra/`: Terraform (`bootstrap/` persistente, `envs/lab/` efêmero).
+- `db/migrations/`: SQL puro (dbmate). `infra/`: Terraform (`bootstrap/` persistente, `envs/lab/` efêmero, `modules/`), CA bundle do RDS em `infra/certs/`. `Dockerfile` na raiz (targets `api` e `worker`, ARM64).
 
 ## Comandos
 
@@ -36,6 +36,8 @@ Documentos de referência (fonte de verdade, nesta ordem):
 pnpm install                 # instala (scripts de dependências bloqueados; ver allowBuilds)
 pnpm infra:up                # docker compose: postgres, elasticmq (SQS), jaeger
 pnpm infra:check             # verifica postgres, filas + DLQ e jaeger
+pnpm infra:lint              # Terraform: fmt, validate (bootstrap + lab), terraform test (mock_provider, IDs de risco), tflint, trivy; em containers fixados, sem credenciais
+./scripts/lab.sh up|down|status  # sessão AWS (aprovação humana): apply com services em 0 → migration → services em 1 → smoke; down = destroy + session-end-check
 pnpm infra:down | infra:reset
 pnpm lint | lint:fix
 pnpm format | format:check
@@ -148,7 +150,7 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 
 ## Estado atual
 
-- **Fases 0–5 concluídas** (fundação, specs, API, outbox + worker, front Next.js, observabilidade local). Próxima: fase 6 (infraestrutura AWS com Terraform).
+- **Fases 0–5 concluídas** (fundação, specs, API, outbox + worker, front Next.js, observabilidade local). **Fase 6 (Terraform) com código pronto e validado estaticamente**; falta o setup da conta e o `terraform apply` (só com aprovação humana). Próxima: fase 7 (CI/CD com OIDC).
 - Relay do outbox roda dentro da API com `OUTBOX_RELAY_ENABLED=true` (padrão `false`; testes da API o mantêm desligado). Worker: `apps/worker`, Nest standalone, papel `mini_banco_worker`.
 - `createPool` registra listener de `error`: sem ele, uma conexão ociosa derrubada pelo servidor mata o processo.
 - Pipeline HTTP (`apps/api/src/app.ts`): helmet → log/correlação → API key (antes do roteamento: 401 antes de 404) → body parser 16 KB → Nest → filtro `problem+json`. Validação com `parseOrThrow` (zod) no controller, na ordem de TRF-BR-13.
@@ -156,4 +158,5 @@ Escolha de modelo e agentes: use o modelo mais capaz para desenho, concorrência
 - Divergências intencionais entre `openapi.yaml` e zod (dígito verificador do CPF, trim do nome) estão listadas em `packages/contracts/src/contract.spec.ts`; nova divergência entra lá e na spec.
 - Web (`apps/web`): a API key só é lida em `src/server/api.ts` (`import 'server-only'`; no Vitest `server-only` é um alias vazio). Server Actions validam tudo de novo em `src/server/*.ts`. Testes de componente: `*.spec.tsx` com `// @vitest-environment jsdom`. `next-env.d.ts` é gerado (gitignored).
 - Telemetria (ADR-0025): só a API do OTel nos apps (`@mini-banco/observability`: `withConsumerSpan`, `withProducerSpan`, `currentTraceparent`, `appMetrics`); sem SDK tudo é no-op. Atributos de métrica só `reason`/`rule`/`outcome` (`PERF-25`). Chamada ao SQS que precisa preservar o `traceparent` do evento roda em `withoutAutoInstrumentation`. Instrumentação nova exige incluir o módulo em `INSTRUMENTED_MODULES` (loader ESM).
+- AWS (fase 6): sem AWS CLI/Terraform locais; tudo roda em containers fixados (`scripts/infra-lint.sh`). Exceção do trivy só em `infra/.trivyignore.yaml`, com justificativa e restrita a um arquivo. `DB_SSL=verify-full` exige `DB_SSL_CA_FILE`. Migration na AWS = `node dist/migrate.js` na imagem da api (ADR-0026). Sessão: `scripts/lab.sh` (orquestra `push-images.sh`, `run-migration.sh`, `session-end-check.sh`). `desired_count` do lab não tem padrão: 0 até a migration rodar. Testes de infra em `infra/**/tests/*.tftest.hcl` com `mock_provider` e o ID do risco na `error_message`.
 - SQS local é **ElasticMQ** (`:9324`), não LocalStack (ADR-0022). O endpoint vem de `AWS_ENDPOINT_URL`; na AWS a variável não existe e o SDK usa o SQS real.

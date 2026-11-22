@@ -115,3 +115,43 @@ jobs:
       # Build de produção + fluxo no navegador + varredura do .next/static pela key (WEB-AC-08).
       - name: Web e2e
         run: pnpm test:web
+
+  infra:
+    name: terraform (fmt, validate, tflint, trivy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Sem credenciais AWS: init -backend=false e só análise estática. Ferramentas em
+      # containers com a mesma versão usada localmente (scripts/infra-lint.sh).
+      - name: Terraform
+        run: ./scripts/infra-lint.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # download do plugin do tflint sem rate limit
+
+  images:
+    name: docker images (arm64, sem push)
+    # Runner ARM nativo: o build não passa por emulação (Fargate Graviton, ADR-0018).
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # O push para o ECR (OIDC) e o scan da imagem entram no deploy.yml (fase 7).
+      - name: Build api
+        run: docker build --target api --build-arg APP=api -t mini-banco/api:ci .
+
+      - name: Build worker
+        run: docker build --target worker --build-arg APP=worker -t mini-banco/worker:ci .
+
+      # Mesmas restrições da task: usuário não-root e filesystem somente leitura (SEC-35).
+      - name: Smoke
+        run: |
+          test "$(docker run --rm --entrypoint id mini-banco/api:ci -u)" = "1000"
+          docker run --rm --read-only --entrypoint sh mini-banco/api:ci -c '! touch /app/x 2>/dev/null'
+          docker run --rm --read-only --entrypoint /app/bin/dbmate mini-banco/api:ci --version

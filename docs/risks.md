@@ -87,7 +87,7 @@ Severidade: **Alta** (perda de dinheiro, vazamento ou indisponibilidade prováve
 | SEC-32 | Supply chain | Actions comprometidas (caso `tj-actions/changed-files`, 2025), worms npm (caso Shai-Hulud, 2025), `postinstall` malicioso | Alta | Mitigar | Actions fixadas por **SHA**; pnpm com lifecycle scripts bloqueados exceto whitelist; lockfile congelado; Dependabot com cooldown | 0, 7 |
 | SEC-33 | Segredos no Terraform state | `random_password` do app user em texto no state | Média | Mitigar | Bucket privado e criptografado, versionado, acesso só do admin; state local do bootstrap fora do git | 6 |
 | SEC-34 | ECS Exec = shell em produção | Quem tem `ecs:ExecuteCommand` lê env vars com segredos | Média | Mitigar | Desligado por padrão (`enable_execute_command = false`); sessões auditadas no CloudTrail | 6 |
-| SEC-35 | Container privilegiado | Processo como root, filesystem gravável | Baixa | Mitigar | `USER node`, `readonlyRootFilesystem`, imagem slim/distroless | 10 |
+| SEC-35 | Container privilegiado | Processo como root, filesystem gravável | Baixa | Mitigar | `USER node`, `readonlyRootFilesystem`, imagem slim/distroless (feito na fase 6: `Dockerfile` + task definitions) | 6 |
 | SEC-36 | Denial of wallet | Bots batendo na URL pública geram requisições SSR, logs e tráfego | Média | Mitigar | Budget + Anomaly Detection, senha no Amplify, rate limit, retenção de logs de 3 dias, nada ligado fora da sessão | 6 |
 
 ---
