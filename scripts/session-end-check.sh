@@ -22,10 +22,56 @@ check() { # check <descrição> <comando aws que imprime um item por linha>
 
 a() { aws --region "$REGION" --output text "$@"; }
 
-# A API de tagging pode demorar alguns minutos para refletir exclusões.
-check "recursos com tag Project=mini-banco, Env=lab" \
+# A API de tagging é eventualmente consistente e lista também o que já foi apagado ou ficou
+# inativo: recurso EC2 removido (some em minutos), cluster/service/task definition ECS INACTIVE e
+# task STOPPED (registros que a AWS guarda por um tempo, sem custo). Cada ARN listado é conferido
+# na API do próprio serviço; só conta como sobra o que ainda existe e está ativo. Tipo sem
+# conferência conhecida conta como sobra (na dúvida, alerta).
+# Só "NotFound" prova que o recurso EC2 sumiu; qualquer outro erro (AccessDenied, throttling) conta
+# como existente, para alertar em vez de esconder uma sobra.
+EC2_OUT=""
+ec2_exists() {
+  local err
+  err="$(mktemp)"
+  if EC2_OUT="$("$@" 2>"$err")"; then rm -f "$err"; return 0; fi
+  if grep -q 'NotFound' "$err"; then rm -f "$err"; return 1; fi
+  rm -f "$err"
+  return 0
+}
+
+alive() { # alive <arn>: 0 = ainda existe e está ativo
+  local arn="$1" res="${1#arn:aws:*:*:*:}" id status
+  id="${res##*/}"
+  case "$arn" in
+    arn:aws:ec2:*:security-group/*)
+      ec2_exists a ec2 describe-security-groups --group-ids "$id" --query 'SecurityGroups[].GroupId' ;;
+    arn:aws:ec2:*:security-group-rule/*)
+      ec2_exists a ec2 describe-security-group-rules --security-group-rule-ids "$id" --query 'SecurityGroupRules[].SecurityGroupRuleId' ;;
+    arn:aws:ec2:*:vpc-endpoint/*)
+      ec2_exists a ec2 describe-vpc-endpoints --vpc-endpoint-ids "$id" --query 'VpcEndpoints[0].State' || return 1
+      case "$EC2_OUT" in deleted | deleting) return 1 ;; esac ;;
+    arn:aws:ecs:*:cluster/*)
+      [ "$(a ecs describe-clusters --clusters "$arn" --query 'clusters[0].status' 2>/dev/null)" = ACTIVE ] ;;
+    arn:aws:ecs:*:service/*)
+      [ "$(a ecs describe-services --cluster "$(printf '%s' "$res" | cut -d/ -f2)" --services "$arn" --query 'services[0].status' 2>/dev/null)" = ACTIVE ] ;;
+    arn:aws:ecs:*:task-definition/*)
+      [ "$(a ecs describe-task-definition --task-definition "$arn" --query 'taskDefinition.status' 2>/dev/null)" = ACTIVE ] ;;
+    arn:aws:ecs:*:task/*)
+      status="$(a ecs describe-tasks --cluster "$(printf '%s' "$res" | cut -d/ -f2)" --tasks "$arn" --query 'tasks[0].lastStatus' 2>/dev/null)" || return 1
+      case "$status" in STOPPED | DELETED | None | "") return 1 ;; esac ;;
+    *) return 0 ;;
+  esac
+}
+
+tagged_alive() {
+  local arn
   a resourcegroupstaggingapi get-resources --tag-filters Key=Project,Values=mini-banco Key=Env,Values=lab \
-  --query 'ResourceTagMappingList[].ResourceARN'
+    --query 'ResourceTagMappingList[].ResourceARN' | tr '\t' '\n' | grep -v '^None$' | sed '/^$/d' |
+    while IFS= read -r arn; do
+      if alive "$arn"; then echo "$arn"; fi
+    done
+}
+check "recursos com tag Project=mini-banco, Env=lab (ainda ativos)" tagged_alive
 check "instâncias RDS" a rds describe-db-instances --query "DBInstances[?starts_with(DBInstanceIdentifier,'mini-banco')].DBInstanceIdentifier"
 check "snapshots manuais do RDS" a rds describe-db-snapshots --snapshot-type manual --query "DBSnapshots[?starts_with(DBInstanceIdentifier,'mini-banco')].DBSnapshotIdentifier"
 check "load balancers" a elbv2 describe-load-balancers --query "LoadBalancers[?starts_with(LoadBalancerName,'mini-banco')].LoadBalancerName"
