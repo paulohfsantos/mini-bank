@@ -70,7 +70,7 @@ As tasks saem para a internet pelo Internet Gateway usando IP público (sem NAT)
 | IAM role | `mini-banco-github-deploy` | Deploy pelo CI | §3.4 |
 | ECR | `mini-banco/api`, `mini-banco/worker` | Imagens sobrevivem entre sessões (evita rebuild a cada apply) | `image_tag_mutability = IMMUTABLE`, scan on push, lifecycle: manter 10 imagens |
 | AWS Budgets | `mini-banco-monthly` | Alerta de gasto | Limite mensal de US$ 15; alertas em 50%, 80% e 100% real e 100% previsto, por e-mail |
-| Cost Anomaly Detection | monitor por serviço | Detectar recurso esquecido | Alerta diário por e-mail |
+| Cost Anomaly Detection | `Default-Services-Monitor` (criado pela AWS ao ativar o Cost Explorer) | Detectar recurso esquecido | Alerta diário por e-mail. Fora do Terraform: a conta só aceita um monitor por serviço e a AWS já cria o padrão |
 
 ### 2.2 Efêmeros (`infra/envs/lab`): criados e destruídos por sessão
 
@@ -468,7 +468,7 @@ Os GRANTs ficam na migration `0002_app_roles.sql` (papéis `NOLOGIN`; a senha/LO
 ```text
 infra/
 ├── bootstrap/                  # aplicado uma vez; raramente destruído
-│   ├── main.tf                 # S3 state bucket, OIDC provider, role GitHub, ECR, Budgets, anomaly monitor
+│   ├── main.tf                 # S3 state bucket, OIDC provider, role GitHub, ECR, Budgets (anomaly monitor: o padrão da AWS)
 │   ├── variables.tf            # github_owner, budget_email, monthly_budget_usd
 │   └── backend.tf              # começa com state local; depois migra para o próprio bucket
 ├── envs/

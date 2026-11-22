@@ -227,7 +227,7 @@ Convenções usadas em todas as fases:
 **Objetivo:** ambiente AWS completo criado e destruído por comando, com custo baixo (detalhes em `aws.md`).
 
 **Tarefas**
-- [ ] Setup seguro da conta (`aws.md` §7): MFA no root, IAM Identity Center, Budgets e Cost Anomaly Detection (2026-11-22: MFA no root, Identity Center com instância de organização, usuário com MFA, permission set `LabAdmin` e perfil SSO `mini-banco` feitos; falta o budget de US$ 15 e o anomaly monitor, que vêm do `lab.sh bootstrap`)
+- [x] Setup seguro da conta (`aws.md` §7): MFA no root, IAM Identity Center, Budgets e Cost Anomaly Detection (2026-11-22: MFA no root, Identity Center com instância de organização, usuário com MFA, permission set `LabAdmin` e perfil SSO `mini-banco` feitos; `lab.sh bootstrap` aplicado com state em S3, budget de US$ 15; anomaly monitor = o `Default-Services-Monitor` que a AWS cria)
 - [x] `infra/bootstrap`: bucket de state (versionado, criptografado, bloqueio público), OIDC provider do GitHub, role `mini-banco-github-deploy`, repositórios ECR (`IMMUTABLE`, scan on push, lifecycle mantendo 10 imagens), Budget com e-mail
 - [x] `infra/modules`: `network`, `security-groups`, `alb`, `ecs-cluster`, `ecs-service` (reutilizado por api e worker), `rds`, `sqs`, `secrets`, `observability`, `amplify-web`
 - [x] `infra/envs/lab`: composição dos módulos; backend S3 com `use_lockfile = true`; `default_tags` (`Project=mini-banco`, `Env=lab`, `ManagedBy=terraform`)

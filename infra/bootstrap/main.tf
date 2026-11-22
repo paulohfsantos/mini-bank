@@ -263,26 +263,8 @@ resource "aws_budgets_budget" "monthly" {
   }
 }
 
-resource "aws_ce_anomaly_monitor" "services" {
-  name              = "mini-banco-services"
-  monitor_type      = "DIMENSIONAL"
-  monitor_dimension = "SERVICE"
-}
-
-resource "aws_ce_anomaly_subscription" "daily" {
-  name             = "mini-banco-daily"
-  frequency        = "DAILY"
-  monitor_arn_list = [aws_ce_anomaly_monitor.services.arn]
-  subscriber {
-    type    = "EMAIL"
-    address = var.budget_email
-  }
-  # Recurso esquecido aparece como anomalia de poucos dólares.
-  threshold_expression {
-    dimension {
-      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
-      match_options = ["GREATER_THAN_OR_EQUAL"]
-      values        = ["1"]
-    }
-  }
-}
+# Cost Anomaly Detection: sem recurso aqui. Ao ativar o Cost Explorer, a AWS cria sozinha o
+# `Default-Services-Monitor` (DIMENSIONAL/SERVICE) com uma assinatura diária por e-mail, e só é
+# permitido UM monitor por serviço por conta ("Limit exceeded on dimensional spend monitor
+# creation"). Ele já cobre o objetivo (recurso esquecido vira anomalia); conferir o destinatário em
+# Billing → Cost Anomaly Detection → Alert subscriptions.

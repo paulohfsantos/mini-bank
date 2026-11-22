@@ -20,6 +20,8 @@
 # Compatível com o bash 3.2 do macOS.
 
 set -uo pipefail
+# bash 3.2 (macOS) + set -u: "${a[@]}" com array vazio aborta ("unbound variable"). Arrays que
+# podem ficar vazios são expandidos como ${a[@]+"${a[@]}"}.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAB_DIR="$ROOT/infra/envs/lab"
@@ -92,12 +94,12 @@ trap on_interrupt INT TERM
 
 hint_for() {
   case "$1" in
-    apply*) echo "Leia o erro do Terraform no log. Recurso já existe? 'terraform state list'. Quota/conta não verificada (CloudFront)? Suporte da AWS." ;;
+    apply*) echo "Respondeu 'no'? Nada foi aplicado; rode de novo. Senão, leia o erro do Terraform no log. Recurso já existe? 'terraform state list'. Quota/conta não verificada (CloudFront)? Suporte da AWS." ;;
     migrate) echo "Logs da task acima. 'ResourceInitializationError' = secrets/rede; 'dbmate' = SQL da migration; 'password authentication' = rode de novo." ;;
     stable) echo "aws ecs describe-services --cluster mini-banco-lab --services api worker --query 'services[].events[:5]'" ;;
     smoke-cf) echo "CloudFront ainda propagando? Rode './scripts/lab.sh status' em alguns minutos. 502/503: target group do ALB (health check)." ;;
     smoke-alb) echo "O ALB respondeu direto: confira o sg-alb (prefix list do CloudFront) e a regra do header de origem (SEC-02)." ;;
-    init-local | apply-bootstrap) echo "Erro do Terraform no log. 'BucketAlreadyExists': o nome tem o account id; outra conta? 'AccessDenied': a sessão é LabAdmin?" ;;
+    init-local | apply-bootstrap) echo "Respondeu 'no'? Nada foi aplicado. Senão: erro do Terraform no log. 'BucketAlreadyExists': o nome tem o account id; outra conta? 'AccessDenied': a sessão é LabAdmin?" ;;
     migrate-state | verify-state) echo "Rode './scripts/lab.sh bootstrap' de novo: ele retoma pela migração (o state local continua em infra/bootstrap)." ;;
     destroy) echo "'still has dependencies': espere as ENIs das tasks sumirem (~minutos) e rode 'down' de novo." ;;
     leftovers) echo "A API de tagging demora a refletir exclusões; rode 'scripts/session-end-check.sh' de novo em alguns minutos." ;;
@@ -140,8 +142,10 @@ tf() {
     (cd "$ROOT/infra/$TF_REL" && terraform "$@")
     return
   fi
-  local tty=()
-  [ -t 0 ] && [ -t 1 ] && tty=(-it)
+  # -i quando o terminal é interativo: o "yes" do apply/destroy chega ao container pelo stdin.
+  # Só stdin importa: o stdout sempre passa pelo tee do log (não é tty).
+  local stdin_flags=()
+  [ -t 0 ] && stdin_flags=(-i)
   # Credenciais temporárias da sessão atual, só como env do container.
   local creds
   creds="$(aws configure export-credentials --format env-no-export 2>/dev/null)" || {
@@ -154,7 +158,7 @@ tf() {
   for v in TF_VAR_alarm_email TF_VAR_github_token TF_VAR_budget_email; do
     [ -n "${!v:-}" ] && envs+=(-e "$v=${!v}")
   done
-  docker run --rm "${tty[@]}" "${envs[@]}" -e AWS_REGION="$REGION" -e TF_IN_AUTOMATION=1 \
+  docker run --rm ${stdin_flags[@]+"${stdin_flags[@]}"} ${envs[@]+"${envs[@]}"} -e AWS_REGION="$REGION" -e TF_IN_AUTOMATION=1 \
     -v "$ROOT/infra:/infra" -w "/infra/$TF_REL" "hashicorp/terraform:$TF_VERSION" "$@"
 }
 
@@ -245,7 +249,7 @@ cmd_up() {
   title "Infraestrutura"
   # 1º apply: services em 0. Os papéis do banco só ganham LOGIN na migration (ADR-0026).
   must apply-base "terraform apply (services em 0)" \
-    tf apply -input=false "${auto[@]}" -var "image_tag=$TAG" -var desired_count=0
+    tf apply -input=false ${auto[@]+"${auto[@]}"} -var "image_tag=$TAG" -var desired_count=0
 
   title "Aplicação"
   must migrate "Migration + LOGIN dos papéis (task mini-banco-lab-migrate)" "$ROOT/scripts/run-migration.sh"
@@ -318,7 +322,7 @@ cmd_down() {
   title "Destroy"
   # As variáveis obrigatórias não mudam o destroy; a tag só precisa ser válida.
   must destroy "terraform destroy" \
-    tf destroy -input=false "${auto[@]}" -var "image_tag=$TAG" -var desired_count=0 \
+    tf destroy -input=false ${auto[@]+"${auto[@]}"} -var "image_tag=$TAG" -var desired_count=0 \
     -var "alarm_email=${TF_VAR_alarm_email:-destroy@example.invalid}"
   title "Conferência"
   if ! run_step leftovers "session-end-check (nada do lab pode sobrar)" "$ROOT/scripts/session-end-check.sh"; then
@@ -341,13 +345,19 @@ cmd_bootstrap() {
   local auto=()
   [ "$YES" -eq 1 ] && auto=(-auto-approve)
   title "Bootstrap (infra/bootstrap)"
-  if ! bucket_exists; then
-    info "bucket $BUCKET ainda não existe: 1º apply com state local"
+  # override.tf presente = o apply com state local ainda não terminou com sucesso (falhou ou foi
+  # interrompido): aplica de novo (só cria o que falta) antes de migrar. Ele só sai depois do apply.
+  if ! bucket_exists || [ -f "$OVERRIDE" ]; then
+    if [ -f "$OVERRIDE" ]; then
+      info "retomando: o apply anterior com state local não terminou"
+    else
+      info "bucket $BUCKET ainda não existe: 1º apply com state local"
+    fi
     printf '%s\n' "# Gerado por scripts/lab.sh bootstrap: state local só até o bucket existir. Não versionar." \
       'terraform {' '  backend "local" {}' '}' >"$OVERRIDE"
     must init-local "terraform init (state local temporário)" tf init -input=false -reconfigure
     must apply-bootstrap "terraform apply (bucket de state, OIDC, ECR, budget)" \
-      tf apply -input=false "${auto[@]}"
+      tf apply -input=false ${auto[@]+"${auto[@]}"}
   fi
   if [ -f "$OVERRIDE" ] || [ -f "$LOCAL_STATE" ]; then
     rm -f "$OVERRIDE"
@@ -360,7 +370,7 @@ cmd_bootstrap() {
   else
     must init "terraform init (state em s3://$BUCKET)" \
       tf init -input=false -reconfigure -backend-config="bucket=$BUCKET"
-    must apply-bootstrap "terraform apply (bootstrap)" tf apply -input=false "${auto[@]}"
+    must apply-bootstrap "terraform apply (bootstrap)" tf apply -input=false ${auto[@]+"${auto[@]}"}
   fi
   summary
   printf '\n%s\n' "${GREEN}${BOLD}SUCESSO${RESET}${GREEN}: bootstrap aplicado; state em s3://$BUCKET/bootstrap/terraform.tfstate.${RESET}"
