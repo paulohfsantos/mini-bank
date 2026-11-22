@@ -5,12 +5,15 @@
 #                                          → espera estabilizar → smoke (CloudFront 200, ALB direto falha)
 #   ./scripts/lab.sh down [--yes]          destroy → session-end-check (nada do lab pode sobrar)
 #   ./scripts/lab.sh status                saídas do Terraform, tasks rodando e health pelo CloudFront
+#   ./scripts/lab.sh bootstrap [--yes]     uma vez por conta: state, OIDC, ECR, budget (infra/bootstrap);
+#                                          na 1ª vez aplica com state local e o migra para o bucket criado
 #
 #   --push   faz build e push das imagens do HEAD se ainda não estiverem no ECR
 #   --yes    não pergunta antes do apply/destroy (o plan ainda é impresso)
 #
-# Pré-requisitos: aws CLI com sessão (aws sso login --profile mini-banco; AWS_PROFILE exportado),
-# bootstrap aplicado, TF_VAR_alarm_email (e TF_VAR_github_token, se quiser o front).
+# Pré-requisitos: aws CLI com sessão SSO (aws sso login --profile mini-banco; AWS_PROFILE exportado),
+# nunca como root (o script recusa). up: bootstrap aplicado, TF_VAR_alarm_email (e TF_VAR_github_token,
+# se quiser o front). bootstrap: TF_VAR_budget_email.
 # Terraform: o binário local se for a versão de infra/.terraform-version; senão o container
 # com essa versão, recebendo só credenciais temporárias da sessão SSO (nada de ~/.aws montado).
 # Logs: .logs/lab-<etapa>.log. Saída: 0 ok | 1 etapa falhou | 2 pré-requisito ausente | 130 Ctrl+C.
@@ -20,13 +23,15 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LAB_DIR="$ROOT/infra/envs/lab"
+BOOTSTRAP_DIR="$ROOT/infra/bootstrap"
+TF_REL="envs/lab" # diretório do root Terraform (relativo a infra/) usado por tf()
 LOG_DIR="$ROOT/.logs"
 REGION="${AWS_REGION:-us-east-1}"
 export AWS_REGION="$REGION"
 TF_VERSION="$(tr -d '[:space:]' <"$ROOT/infra/.terraform-version")"
 CF_WAIT_SECONDS="${LAB_CF_WAIT_SECONDS:-900}" # CloudFront leva minutos para propagar
 
-usage() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
 
 CMD="${1:-}"
 [ $# -gt 0 ] && shift
@@ -41,7 +46,7 @@ for arg in "$@"; do
   esac
 done
 case "$CMD" in
-  up | down | status) ;;
+  up | down | status | bootstrap) ;;
   -h | --help | help) usage; exit 0 ;;
   *) usage >&2; exit 2 ;;
 esac
@@ -92,6 +97,8 @@ hint_for() {
     stable) echo "aws ecs describe-services --cluster mini-banco-lab --services api worker --query 'services[].events[:5]'" ;;
     smoke-cf) echo "CloudFront ainda propagando? Rode './scripts/lab.sh status' em alguns minutos. 502/503: target group do ALB (health check)." ;;
     smoke-alb) echo "O ALB respondeu direto: confira o sg-alb (prefix list do CloudFront) e a regra do header de origem (SEC-02)." ;;
+    init-local | apply-bootstrap) echo "Erro do Terraform no log. 'BucketAlreadyExists': o nome tem o account id; outra conta? 'AccessDenied': a sessão é LabAdmin?" ;;
+    migrate-state | verify-state) echo "Rode './scripts/lab.sh bootstrap' de novo: ele retoma pela migração (o state local continua em infra/bootstrap)." ;;
     destroy) echo "'still has dependencies': espere as ENIs das tasks sumirem (~minutos) e rode 'down' de novo." ;;
     leftovers) echo "A API de tagging demora a refletir exclusões; rode 'scripts/session-end-check.sh' de novo em alguns minutos." ;;
     *) echo "Veja o log completo." ;;
@@ -130,7 +137,7 @@ must() {
 TF_MODE=""
 tf() {
   if [ "$TF_MODE" = "local" ]; then
-    (cd "$LAB_DIR" && terraform "$@")
+    (cd "$ROOT/infra/$TF_REL" && terraform "$@")
     return
   fi
   local tty=()
@@ -144,11 +151,11 @@ tf() {
   local envs=() line
   while IFS= read -r line; do [ -n "$line" ] && envs+=(-e "$line"); done <<<"$creds"
   local v
-  for v in TF_VAR_alarm_email TF_VAR_github_token; do
+  for v in TF_VAR_alarm_email TF_VAR_github_token TF_VAR_budget_email; do
     [ -n "${!v:-}" ] && envs+=(-e "$v=${!v}")
   done
   docker run --rm "${tty[@]}" "${envs[@]}" -e AWS_REGION="$REGION" -e TF_IN_AUTOMATION=1 \
-    -v "$ROOT/infra:/infra" -w /infra/envs/lab "hashicorp/terraform:$TF_VERSION" "$@"
+    -v "$ROOT/infra:/infra" -w "/infra/$TF_REL" "hashicorp/terraform:$TF_VERSION" "$@"
 }
 
 image_tag() { git -C "$ROOT" rev-parse --short=12 HEAD; }
@@ -163,11 +170,20 @@ param() { aws ssm get-parameter --name "/mini-banco/lab/$1" --query Parameter.Va
 title "Pré-requisitos"
 [ -d "$HOME/.docker/bin" ] && PATH="$HOME/.docker/bin:$PATH"
 command -v aws >/dev/null 2>&1 || { fail "aws CLI não encontrado (brew install awscli)"; exit 2; }
-if ! ACCOUNT="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)"; then
+if ! CALLER="$(aws sts get-caller-identity --query '[Account,Arn]' --output text 2>/dev/null)"; then
   fail "sem sessão AWS. Rode: aws sso login --profile mini-banco && export AWS_PROFILE=mini-banco"
   exit 2
 fi
-info "conta $ACCOUNT, região $REGION"
+ACCOUNT="${CALLER%%[[:space:]]*}"
+CALLER_ARN="${CALLER##*[[:space:]]}"
+# Root não tem limite de permissão nem MFA nas chamadas de CLI: nada deste projeto roda como root.
+case "$CALLER_ARN" in
+  *:root)
+    fail "a sessão é do usuário root ($CALLER_ARN). Use o login SSO: aws sso login --profile mini-banco && export AWS_PROFILE=mini-banco"
+    exit 2
+    ;;
+esac
+info "conta $ACCOUNT, região $REGION, identidade ${CALLER_ARN##*:assumed-role/}"
 
 if command -v terraform >/dev/null 2>&1 && terraform version 2>/dev/null | head -1 | grep -q "v$TF_VERSION\$"; then
   TF_MODE=local
@@ -182,8 +198,15 @@ else
 fi
 
 BUCKET="mini-banco-tfstate-$ACCOUNT"
-if ! aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; then
-  fail "bucket de state $BUCKET não existe: aplique infra/bootstrap primeiro (aws.md §4)"
+bucket_exists() { aws s3api head-bucket --bucket "$BUCKET" >/dev/null 2>&1; }
+if [ "$CMD" = "bootstrap" ]; then
+  TF_REL="bootstrap"
+  if [ -z "${TF_VAR_budget_email:-}" ]; then
+    fail "defina TF_VAR_budget_email (alertas de custo; fora do git)"
+    exit 2
+  fi
+elif ! bucket_exists; then
+  fail "bucket de state $BUCKET não existe: rode ./scripts/lab.sh bootstrap primeiro"
   exit 2
 fi
 if [ "$CMD" = "up" ] && [ -z "${TF_VAR_alarm_email:-}" ]; then
@@ -193,7 +216,7 @@ fi
 mkdir -p "$LOG_DIR"
 TAG="$(image_tag)"
 
-if [ "$CMD" != "status" ]; then
+if [ "$CMD" = "up" ] || [ "$CMD" = "down" ]; then
   must init "terraform init (state em s3://$BUCKET)" tf init -input=false -reconfigure -backend-config="bucket=$BUCKET"
 fi
 
@@ -307,6 +330,44 @@ cmd_down() {
   printf '\n%s\n' "${GREEN}${BOLD}SUCESSO${RESET}${GREEN}: lab destruído; só o bootstrap continua (< US\$ 0,50/mês).${RESET}"
 }
 
+# ---------- bootstrap ----------
+# Ovo e galinha (aws.md §4): o bucket do state é criado por este próprio root. Na 1ª vez, um
+# override.tf temporário (gitignored) força state local; depois do apply ele sai e o state é
+# migrado para o bucket. Interrompido no meio? Rodar de novo retoma pela migração.
+OVERRIDE="$BOOTSTRAP_DIR/override.tf"
+LOCAL_STATE="$BOOTSTRAP_DIR/terraform.tfstate"
+
+cmd_bootstrap() {
+  local auto=()
+  [ "$YES" -eq 1 ] && auto=(-auto-approve)
+  title "Bootstrap (infra/bootstrap)"
+  if ! bucket_exists; then
+    info "bucket $BUCKET ainda não existe: 1º apply com state local"
+    printf '%s\n' "# Gerado por scripts/lab.sh bootstrap: state local só até o bucket existir. Não versionar." \
+      'terraform {' '  backend "local" {}' '}' >"$OVERRIDE"
+    must init-local "terraform init (state local temporário)" tf init -input=false -reconfigure
+    must apply-bootstrap "terraform apply (bucket de state, OIDC, ECR, budget)" \
+      tf apply -input=false "${auto[@]}"
+  fi
+  if [ -f "$OVERRIDE" ] || [ -f "$LOCAL_STATE" ]; then
+    rm -f "$OVERRIDE"
+    must migrate-state "Migrar o state local para s3://$BUCKET" \
+      tf init -input=false -migrate-state -force-copy -backend-config="bucket=$BUCKET"
+    must verify-state "Conferir o state no S3" tf state list
+    # O state agora está no S3 (versionado). A cópia local fica só como backup gitignored.
+    [ -f "$LOCAL_STATE" ] && mv "$LOCAL_STATE" "$LOCAL_STATE.local-backup"
+    rm -f "$LOCAL_STATE.backup"
+  else
+    must init "terraform init (state em s3://$BUCKET)" \
+      tf init -input=false -reconfigure -backend-config="bucket=$BUCKET"
+    must apply-bootstrap "terraform apply (bootstrap)" tf apply -input=false "${auto[@]}"
+  fi
+  summary
+  printf '\n%s\n' "${GREEN}${BOLD}SUCESSO${RESET}${GREEN}: bootstrap aplicado; state em s3://$BUCKET/bootstrap/terraform.tfstate.${RESET}"
+  info "Role do GitHub (fase 7): $(tf output -raw github_deploy_role_arn 2>/dev/null)"
+  info "Próximo: confirme o e-mail do Cost Anomaly Detection, depois ./scripts/lab.sh up --push"
+}
+
 # ---------- status ----------
 cmd_status() {
   local cluster
@@ -325,4 +386,5 @@ case "$CMD" in
   up) cmd_up ;;
   down) cmd_down ;;
   status) cmd_status ;;
+  bootstrap) cmd_bootstrap ;;
 esac

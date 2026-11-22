@@ -37,7 +37,8 @@ pnpm install                 # instala (scripts de dependências bloqueados; ver
 pnpm infra:up                # docker compose: postgres, elasticmq (SQS), jaeger
 pnpm infra:check             # verifica postgres, filas + DLQ e jaeger
 pnpm infra:lint              # Terraform: fmt, validate (bootstrap + lab), terraform test (mock_provider, IDs de risco), tflint, trivy; em containers fixados, sem credenciais
-./scripts/lab.sh up|down|status  # sessão AWS (aprovação humana): apply com services em 0 → migration → services em 1 → smoke; down = destroy + session-end-check
+./scripts/lab.sh bootstrap       # uma vez por conta (aprovação humana): state, OIDC, ECR, budget; 1ª vez com state local migrado para o S3
+./scripts/lab.sh up|down|status  # sessão AWS (aprovação humana): apply com services em 0 → migration → services em 1 → smoke; down = destroy + session-end-check. Recusa sessão root
 pnpm infra:down | infra:reset
 pnpm lint | lint:fix
 pnpm format | format:check

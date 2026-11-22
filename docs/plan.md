@@ -227,7 +227,7 @@ Convenções usadas em todas as fases:
 **Objetivo:** ambiente AWS completo criado e destruído por comando, com custo baixo (detalhes em `aws.md`).
 
 **Tarefas**
-- [ ] Setup seguro da conta (`aws.md` §7): MFA no root, IAM Identity Center, Budgets e Cost Anomaly Detection
+- [ ] Setup seguro da conta (`aws.md` §7): MFA no root, IAM Identity Center, Budgets e Cost Anomaly Detection (2026-11-22: MFA no root, Identity Center com instância de organização, usuário com MFA, permission set `LabAdmin` e perfil SSO `mini-banco` feitos; falta o budget de US$ 15 e o anomaly monitor, que vêm do `lab.sh bootstrap`)
 - [x] `infra/bootstrap`: bucket de state (versionado, criptografado, bloqueio público), OIDC provider do GitHub, role `mini-banco-github-deploy`, repositórios ECR (`IMMUTABLE`, scan on push, lifecycle mantendo 10 imagens), Budget com e-mail
 - [x] `infra/modules`: `network`, `security-groups`, `alb`, `ecs-cluster`, `ecs-service` (reutilizado por api e worker), `rds`, `sqs`, `secrets`, `observability`, `amplify-web`
 - [x] `infra/envs/lab`: composição dos módulos; backend S3 com `use_lockfile = true`; `default_tags` (`Project=mini-banco`, `Env=lab`, `ManagedBy=terraform`)
@@ -251,6 +251,7 @@ Notas de implementação:
 - Providers fixados em `~> 6.72.0` (AWS) com lock file para darwin/linux arm64 e linux amd64; Dependabot (terraform, docker) com cooldown de 14 dias.
 - Exceções do trivy, cada uma com justificativa e restrita a um arquivo: `infra/.trivyignore.yaml`.
 - `terraform test` com `mock_provider` em 7 módulos e nos 2 roots (28 casos, IDs `SEC-02`, `SEC-20`, `SEC-33`, `SEC-34`, `SEC-35`, `PERF-01`, `PERF-05`, `PERF-21`, `PERF-22`, `PERF-25`), dentro do `pnpm infra:lint`; teste de mutação confirmou que cada trava quebrada derruba um caso.
+- `scripts/lab.sh bootstrap` aplica o bootstrap (1ª vez com `override.tf` de backend local, depois migra o state para o bucket criado; retomável). Todo comando do `lab.sh` recusa sessão root.
 - `scripts/lab.sh up|down|status` executa o critério de pronto: services em 0 → migration → services em 1 → smoke (CloudFront 200, sem key 401, ALB direto sem resposta). Fluxo de sucesso e de falha testado com `aws`/`terraform`/`curl` simulados; o modo Terraform em container com credenciais exportadas só será exercitado no primeiro apply real.
 
 **Entregáveis:** `terraform apply` sobe o ambiente; `terraform destroy` remove tudo exceto o bootstrap.

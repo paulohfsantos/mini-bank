@@ -498,7 +498,7 @@ infra/
 Decisões:
 
 - **Dois roots com states separados.** O destroy do `lab` nunca toca no bucket de state, no OIDC nem nas imagens. O `lab` lê do bootstrap via `terraform_remote_state` ou por nomes conhecidos.
-- **Ovo e galinha do bucket:** o `bootstrap` é aplicado primeiro com state local; depois se adiciona o `backend "s3"` e roda `terraform init -migrate-state`.
+- **Ovo e galinha do bucket:** o `bootstrap` cria o próprio bucket do seu state. `./scripts/lab.sh bootstrap` resolve sozinho: na 1ª vez gera um `override.tf` temporário (gitignored) com backend local, aplica, remove o override e roda `terraform init -migrate-state` para o bucket recém-criado. Se for interrompido entre o apply e a migração, rodar de novo retoma pela migração. Depois disso o state do bootstrap fica em `s3://mini-banco-tfstate-<account-id>/bootstrap/terraform.tfstate`.
 - **Imagem e deploy:** o Terraform cria a task definition com `var.image_tag` (o SHA mais recente no ECR, via script). O service usa `lifecycle { ignore_changes = [task_definition] }` para que deploys do CI não gerem drift.
 - **Senhas:** `random_password` para os usuários da app e para o header de origem do CloudFront fica no state, por isso o bucket é criptografado e privado e o state local do bootstrap nunca vai para o git (`SEC-33`). A senha master não passa pelo state (`manage_master_user_password`).
 - Versões fixadas: `required_version` do Terraform e do provider `aws` com `~>`.
@@ -506,6 +506,17 @@ Decisões:
 ---
 
 ## 5. Comandos de deploy e destroy
+
+### Uma vez por conta: bootstrap
+
+```bash
+aws sso login --profile mini-banco
+export AWS_PROFILE=mini-banco AWS_REGION=us-east-1
+export TF_VAR_budget_email=...           # fora do git
+./scripts/lab.sh bootstrap               # mostra o plan e pede confirmação; state migrado para o S3 no fim
+```
+
+Todos os comandos do `lab.sh` recusam rodar com sessão de **root** (ARN `...:root`): o acesso é sempre pelo SSO com o permission set `LabAdmin` (§7.2).
 
 ### Início da sessão
 
