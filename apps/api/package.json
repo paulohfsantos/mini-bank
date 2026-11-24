@@ -32,7 +32,7 @@
     "@mini-banco/messaging": "workspace:*",
     "@mini-banco/observability": "workspace:*",
     "@nestjs/common": "^12.5.1",
-    "@nestjs/core": "^12.5.1",
+    "@nestjs/core": "^12.6.0",
     "@nestjs/platform-express": "^12.5.1",
     "express": "^5.3.0",
     "helmet": "^8.3.0",
