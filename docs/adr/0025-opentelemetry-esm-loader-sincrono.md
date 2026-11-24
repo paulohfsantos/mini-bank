@@ -1,6 +1,6 @@
 # 0025. OpenTelemetry em ESM: loader síncrono, sem instrumentação do Nest, health sem Terminus
 
-- **Status:** Proposta
+- **Status:** Aceita (2026-11-24)
 - **Data:** 2026-11-20
 - **Relacionados:** ADR-0010, ADR-0023, PERF-05, SEC-17, OBS-BR-01, OBS-BR-04, OBS-BR-11
 

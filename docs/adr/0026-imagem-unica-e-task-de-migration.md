@@ -1,6 +1,6 @@
 # 0026. Imagem multi-stage por app e migration como task Node na imagem da api
 
-- **Status:** Proposta
+- **Status:** Aceita (2026-11-24)
 - **Data:** 2026-11-20
 - **Relacionados:** ADR-0018 (Fargate ARM64), ADR-0019 (dbmate), `SEC-09`, `SEC-20`, `SEC-33`, `SEC-35`, `PERF-21`
 

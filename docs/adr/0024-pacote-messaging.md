@@ -1,6 +1,6 @@
 # 0024. Pacote `packages/messaging` para o cliente SQS
 
-- **Status:** Proposta (revisar)
+- **Status:** Aceita (2026-11-24)
 - **Data:** 2026-11-19
 - **Relacionados:** `specs/transfer-processing/spec.md` (OBX-BR-02, PRC-BR-09), ADR-0006, ADR-0007, ADR-0022, `PERF-04`
 

@@ -2,13 +2,13 @@
 
 Laboratório Full Stack + AWS + Spec-Driven Development (SDD). É um sistema de contas e transferências pequeno de propósito, mas construído com as práticas de um banco corporativo. Cada decisão aqui deve poder ser explicada em entrevista técnica.
 
-> **Status:** fase de documentação. Ainda não há código de aplicação nem infraestrutura. O plano de execução está em [`plan.md`](./plan.md) e a infraestrutura AWS em [`aws.md`](./aws.md).
+> **Status:** fases 0–6 concluídas: API, worker, front, observabilidade local e infraestrutura AWS em Terraform (aplicada e destruída por comando). Próximas: CI/CD com OIDC (7), observabilidade na AWS (8), game days (9) e hardening (10). Detalhes em [`plan.md`](./plan.md); infraestrutura em [`aws.md`](./aws.md). Na tabela da seção 2, *(planejado)* marca o que ainda não foi construído.
 
 ---
 
 ## 1. Objetivo
 
-Preparar para uma vaga de **Desenvolvedor Full Stack / AI em banco**. O projeto demonstra, com código real e verificável:
+Demonstrar, com código real e verificável, as práticas de um time **Full Stack / AI em banco corporativo**:
 
 - TypeScript de ponta a ponta: Next.js (App Router) no front e NestJS no back.
 - Arquitetura hexagonal, SOLID e APIs REST com contrato versionado.
@@ -18,9 +18,9 @@ Preparar para uma vaga de **Desenvolvedor Full Stack / AI em banco**. O projeto 
 - AWS de ponta a ponta: Terraform, ECS Fargate, RDS, SQS, IAM com least privilege, CloudWatch, X-Ray e GitHub Actions com OIDC.
 - Uso disciplinado de IA no desenvolvimento, guiado por specs.
 
-## 2. Requisito da vaga → onde aparece no projeto
+## 2. Competências demonstradas → onde aparece no projeto
 
-| Requisito da vaga | Onde aparece no projeto |
+| Competência | Onde aparece no projeto |
 |---|---|
 | TypeScript + React/Next.js | `apps/web`: App Router, Server Components, Server Actions chamando a API pelo servidor (a API key nunca vai ao browser) |
 | NestJS | `apps/api` (HTTP) e `apps/worker` (consumer SQS), com módulos, providers, guards, pipes e interceptors |
@@ -32,14 +32,14 @@ Preparar para uma vaga de **Desenvolvedor Full Stack / AI em banco**. O projeto 
 | Integração síncrona e assíncrona | `POST /v1/transfers` síncrono; evento `transfer.completed` via outbox → SQS → worker |
 | IA aplicada ao desenvolvimento | `CLAUDE.md`, fluxo spec → testes → código, decomposição por fase, revisão humana obrigatória (seção 8) |
 | Spec-Driven Development | `specs/<feature>/spec.md`, `specs/openapi.yaml`, `specs/events/`, critérios Dado/Quando/Então com IDs |
-| AWS: implantação | Terraform (`infra/`), ECS Fargate, ECR, RDS, Amplify Hosting |
+| AWS: implantação | Terraform (`infra/`: `bootstrap` persistente, `envs/lab` efêmero, 13 módulos com `terraform test`), ECS Fargate ARM64, ECR, RDS, CloudFront, Amplify Hosting; sessão completa por `scripts/lab.sh up` / `down` |
 | AWS: IAM | Execution role e task role separadas por serviço, role do GitHub via OIDC, `iam:PassRole` restrito (ver `aws.md`) |
 | AWS: integração | SQS + DLQ com redrive policy, Secrets Manager injetado na task, SSM Parameter Store |
-| AWS: observabilidade | CloudWatch Logs (JSON), métricas EMF, alarmes, dashboard, X-Ray via ADOT/OpenTelemetry |
-| AWS: troubleshooting | Fase 9 com game days: IAM negado, DLQ, secret errado, health check, security group, idempotência concorrente |
-| Segurança | Análise de riscos prévia em [`risks.md`](./risks.md) (`SEC-xx`/`PERF-xx`), least privilege, secrets fora do código, validação de entrada, rate limiting, headers de segurança, TLS ponta a ponta (CloudFront → ALB, `verify-full` no RDS), scan de dependências e imagens |
+| AWS: observabilidade | CloudWatch Logs (JSON), métricas EMF e alarmes, X-Ray via ADOT/OpenTelemetry (sidecar); dashboard *(planejado, fase 8)* |
+| AWS: troubleshooting | *(planejado, fase 9)* game days: IAM negado, DLQ, secret errado, health check, security group, idempotência concorrente |
+| Segurança | Análise de riscos prévia em [`risks.md`](./risks.md) (`SEC-xx`/`PERF-xx`), least privilege, secrets fora do código (Secrets Manager), validação de entrada, headers de segurança, TLS ponta a ponta (CloudFront → ALB, `verify-full` no RDS), `trivy` no Terraform, scan de imagens no ECR, Dependabot com cooldown; rate limiting *(planejado, fase 10)* |
 | Resiliência | Outbox, retries com backoff, DLQ, consumer idempotente, health checks de liveness e readiness |
-| CI/CD | GitHub Actions: lint → testes → build → push ECR → migration (task ECS one-off) → deploy ECS, sem access keys de longa duração |
+| CI/CD | GitHub Actions hoje: lint, typecheck, testes (unit, integração, e2e, Playwright), Terraform (fmt, validate, `terraform test`, tflint, trivy) e build das imagens ARM64. Deploy por OIDC (push ECR → migration em task ECS one-off → deploy ECS, sem access keys) *(planejado, fase 7; a role e o OIDC provider já existem no `bootstrap`)* |
 
 ## 3. Domínio
 
@@ -297,11 +297,14 @@ Regras explícitas para a IA (vão para o `CLAUDE.md`):
 
 Por que isso importa em entrevista: mostra que a IA acelera a produção, mas a **garantia de correção vem da spec, dos testes e da revisão**, não da confiança no texto gerado.
 
-## 9. Como rodar localmente (esboço; o código ainda não existe)
+## 9. Como rodar localmente
 
-Pré-requisitos: Node.js LTS, pnpm, Docker.
+Pré-requisitos: Node 26 (`.nvmrc`), pnpm 12, Docker.
 
 ```bash
+./start.sh                        # tudo de uma vez: install → infra → migrations → todos os testes → pnpm dev
+
+# ou passo a passo:
 pnpm install
 pnpm infra:up                     # postgres, elasticmq (filas + DLQ de infra/local/elasticmq.conf), jaeger
 pnpm infra:check                  # verifica tudo, inclusive a redrive policy
@@ -321,7 +324,7 @@ Exemplo de chamada:
 
 ```bash
 curl -X POST http://localhost:3001/v1/transfers \
-  -H 'x-api-key: local-dev-key' \
+  -H 'x-api-key: local-dev-key-0001' \
   -H 'Idempotency-Key: 6f1c2a8e-0000-4000-8000-000000000001' \
   -H 'Content-Type: application/json' \
   -d '{"sourceAccountId":"...","destinationAccountId":"...","amountCents":15000}'
@@ -329,7 +332,9 @@ curl -X POST http://localhost:3001/v1/transfers \
 
 > **Por que ElasticMQ e não LocalStack:** a imagem atual do LocalStack exige auth token. Como só usamos SQS localmente, o ElasticMQ (open source, sem conta) cobre fila, DLQ com `maxReceiveCount` e `StartMessageMoveTask` (ADR-0022).
 
-## 10. ADRs planejadas (criadas na fase 0)
+## 10. ADRs
+
+Cada decisão está em [`adr/`](./adr/), com contexto, opções e consequências; o status atual fica no próprio arquivo.
 
 | ADR | Decisão (opções → escolha) |
 |---|---|
@@ -357,3 +362,5 @@ curl -X POST http://localhost:3001/v1/transfers \
 | 0022 | SQS local: LocalStack (exige auth token nas versões atuais) vs ElasticMQ → **ElasticMQ**: open source, sem conta nem segredo no CI, sobe rápido; cobre fila, DLQ com `maxReceiveCount` e `StartMessageMoveTask` (verificado). Paridade fina com o SQS real é coberta pelos testes no ambiente `lab` |
 | 0023 | NestJS 12 só ESM: Nest 11 + CJS, Nest 12 via `require(esm)`, ESM com NodeNext (`.js` nos imports) ou ESM com typecheck `bundler` + build SWC + Vitest → **último**: Nest atual, imports sem extensão, testes rápidos; deploy inalterado (`node dist/main.js`) |
 | 0024 | Cliente SQS compartilhado entre relay, worker e scripts: duplicar em cada app, importar de um app no outro ou pacote `packages/messaging` → **pacote**: timeouts num só lugar e um ElasticMQ de teste para todos; adapters continuam nos apps |
+| 0025 | OpenTelemetry em ESM: loader síncrono (`--import`), sem instrumentação do Nest, health checks sem Terminus |
+| 0026 | Imagem multi-stage por app (ARM64, não-root, filesystem somente leitura) e migration como task Node na imagem da api (`dbmate` + LOGIN dos papéis) |
