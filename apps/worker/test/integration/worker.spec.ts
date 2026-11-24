@@ -36,6 +36,7 @@ beforeEach(async () => {
   owner = new pg.Pool({ connectionString: db.url, max: 3 });
   owner.on('error', () => undefined); // PRC-AC-06 encerra conexões de propósito
   admin = new pg.Client({ connectionString: inject('pgAdminUrl') });
+  admin.on('error', () => undefined); // idem: sessão de administração ociosa
   await admin.connect();
   sqs = createTestSqsClient(inject('sqsEndpoint'));
   ({ queueUrl, dlqUrl } = await createTestQueues(sqs));

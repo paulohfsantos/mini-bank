@@ -41,6 +41,9 @@ export async function openTestDb(options: { max?: number } = {}): Promise<TestDb
     max: options.max ?? 20,
   });
   const owner = new pg.Pool({ connectionString: db.url, max: 5 });
+  // Conexão ociosa encerrada pelo servidor (DROP ... WITH (FORCE), parada do container) vira
+  // 'error' no pool; sem listener é erro não tratado e o Vitest reprova a execução inteira.
+  owner.on('error', () => undefined);
   return {
     db,
     owner,

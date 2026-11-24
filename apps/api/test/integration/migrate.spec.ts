@@ -2,24 +2,37 @@
 // e LOGIN dos papéis de aplicação com a senha que viria do Secrets Manager.
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
+import { createPool } from '@mini-banco/database';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import { dbmateUrl, runDbmate, setAppRolePasswords } from '../../src/ops/migrate';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const name = `migrate_${randomBytes(4).toString('hex')}`;
-let admin: pg.Client;
 let pool: pg.Pool;
 let base: URL;
 
+/** Conexão de administração curta: nada fica aberto no banco `postgres` entre os testes. */
+async function asAdmin(sql: string): Promise<void> {
+  const admin = new pg.Client({ connectionString: base.toString() });
+  await admin.connect();
+  try {
+    await admin.query(sql);
+  } finally {
+    await admin.end();
+  }
+}
+
 beforeAll(async () => {
   base = new URL(inject('pgAdminUrl'));
-  admin = new pg.Client({ connectionString: base.toString() });
-  await admin.connect();
   const createSql = `CREATE DATABASE ${name}`; // nome gerado neste arquivo
-  await admin.query(createSql);
-  pool = new pg.Pool({
+  await asAdmin(createSql);
+  // createPool registra o listener de 'error': uma conexão ociosa encerrada pelo servidor
+  // (DROP ... WITH (FORCE), parada do container) não vira erro não tratado. Sem ele o CI
+  // falhou de forma intermitente com 57P01 vindo deste arquivo.
+  pool = createPool({
     connectionString: Object.assign(new URL(base), { pathname: `/${name}` }).toString(),
+    applicationName: 'migrate-test',
     max: 1,
   });
 });
@@ -27,8 +40,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.end();
   const dropSql = `DROP DATABASE IF EXISTS ${name} WITH (FORCE)`;
-  await admin.query(dropSql);
-  await admin.end();
+  await asAdmin(dropSql);
 });
 
 describe('task de migration', () => {

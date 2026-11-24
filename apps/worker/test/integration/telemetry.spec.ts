@@ -36,6 +36,7 @@ beforeEach(async () => {
   telemetry = startTestTelemetry('worker');
   db = await createTestDatabase(inject('pgAdminUrl'), { role: 'mini_banco_worker', max: 10 });
   owner = new pg.Pool({ connectionString: db.url, max: 3 });
+  owner.on('error', () => undefined); // ociosa encerrada pelo servidor não é erro do teste
   sqs = createTestSqsClient(inject('sqsEndpoint'));
   ({ queueUrl } = await createTestQueues(sqs));
   logs = new MemoryStream();

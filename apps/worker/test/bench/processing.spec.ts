@@ -42,6 +42,7 @@ describe('desempenho do worker', () => {
       max: 5,
     });
     const owner = new pg.Pool({ connectionString: db.url, max: 3 });
+    owner.on('error', () => undefined); // ociosa encerrada pelo servidor não é erro do teste
     const sqs = createTestSqsClient(inject('sqsEndpoint'));
     const { queueUrl } = await createTestQueues(sqs);
     const logs = new MemoryStream();
