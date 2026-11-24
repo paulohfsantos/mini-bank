@@ -204,8 +204,8 @@ importers:
         specifier: 'catalog:'
         version: 26.6.6
       dbmate:
-        specifier: ^2.38.1
-        version: 2.38.1
+        specifier: ^2.38.2
+        version: 2.38.2
       eslint:
         specifier: ^10.15.0
         version: 10.15.0(jiti@2.7.0)(supports-color@10.2.2)
@@ -234,8 +234,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0(@swc/core@1.16.22(@swc/helpers@0.5.23))(rolldown@1.2.19)(rollup@2.80.0)(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       vitest:
-        specifier: 5.1.0
-        version: 5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+        specifier: 5.1.1
+        version: 5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
 
   apps/api:
     dependencies:
@@ -289,8 +289,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/config
       '@nestjs/testing':
-        specifier: ^12.5.1
-        version: 12.5.1(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.5.1)(@nestjs/platform-express@12.5.1)
+        specifier: ^12.6.0
+        version: 12.6.0(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.5.1)(@nestjs/platform-express@12.5.1)
       '@types/express':
         specifier: ^5.0.6
         version: 5.0.6
@@ -332,7 +332,7 @@ importers:
         version: link:../../packages/contracts
       next:
         specifier: 16.4.6
-        version: 16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 16.4.6(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react:
         specifier: 19.3.1
         version: 19.3.1
@@ -469,8 +469,8 @@ importers:
         specifier: workspace:*
         version: link:../config
       '@testcontainers/postgresql':
-        specifier: ^12.2.1
-        version: 12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2)
+        specifier: ^12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -478,8 +478,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: ^12.2.1
-        version: 12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2)
+        specifier: ^12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -497,8 +497,8 @@ importers:
         specifier: 'catalog:'
         version: 26.6.6
       testcontainers:
-        specifier: ^12.2.1
-        version: 12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2)
+        specifier: ^12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -746,38 +746,38 @@ packages:
     resolution: {integrity: sha512-mHyyEL0eIEqJ6+aF24+AdZRo4bu4W5GdUiCiCx5X7kfDY51ye8GQJ264uOINObrRSKxtSRCOWPpl9hbOy4UzxQ==}
     engines: {node: '>=22'}
 
-  '@dbmate/darwin-arm64@2.38.1':
-    resolution: {integrity: sha512-cf8e23w/FtJMvP+jJY59bBHLp2XYgP3pVdTppOUekI/6vZnFA5G/3fQfBAM2e/xRpOhAyT8ctwpJITD3TqGruw==}
+  '@dbmate/darwin-arm64@2.38.2':
+    resolution: {integrity: sha512-J6vHOsuiVwibLay//AONoj2/c+EZBzLc22EM9XfzxsLVFqvgbKBXmJ/JjQh+TYB3QUSnP4Y2yfZhsUoG8cPGJQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dbmate/darwin-x64@2.38.1':
-    resolution: {integrity: sha512-89+RF3wPsChEz44tf0qAi6Co5KTtq9WBuMwE8PioNMnIj+I6iPeJo9u4XIEvDudHiWGHE5ZtXon8RePiXFRpEA==}
+  '@dbmate/darwin-x64@2.38.2':
+    resolution: {integrity: sha512-+bRt04DRp184X4+pC7lmUvHpPjKxoAPV1QbEbmolMPOG069N+dDdET1yc36eZuUJ5AwyVrjEJk1Y0WSsiZkINg==}
     cpu: [x64]
     os: [darwin]
 
-  '@dbmate/linux-arm64@2.38.1':
-    resolution: {integrity: sha512-xxUbU1w/tpzUHU1hyVFwG1mjW8CKHMxgCiGQxMCjy2pfckHA9sInveK0+bCC8M3jz48475tg85Lr5xXAQaNR+A==}
+  '@dbmate/linux-arm64@2.38.2':
+    resolution: {integrity: sha512-Qm4EdX3HYcShYB90SB9FkWRD0z6voXU3QpNyOoFJeQeJL/FCcImrClQSlZJzp9feDWvAubDqxzuvDuXlSBK5Lw==}
     cpu: [arm64]
     os: [linux]
 
-  '@dbmate/linux-arm@2.38.1':
-    resolution: {integrity: sha512-E7l7u+AMuAmBBFAxT6QLEMeIE3gbjfHDa+gEFlrtfrEKcCOuVCVy/FOPYQ1yxNdjBPwdkufR3GamUw0dXOgRFQ==}
+  '@dbmate/linux-arm@2.38.2':
+    resolution: {integrity: sha512-dXIM2NJHWmssRYKmkxOX75H3KCcreuAwrrvIhNk14BIUK/hI9YvV7uVxBJtzlXi0mOacZB4vH54KaEAoEekktQ==}
     cpu: [arm]
     os: [linux]
 
-  '@dbmate/linux-ia32@2.38.1':
-    resolution: {integrity: sha512-UbPEmOHWW6qlB8nrZ+Q6IZUA3q5JVOL9VtNs2h6bib9VjNkbQToFhP8nZt7s3WGlnh0+3KRDUA+6mppKfIDleg==}
+  '@dbmate/linux-ia32@2.38.2':
+    resolution: {integrity: sha512-3rDcwb1aNXiHtcHKK3EJJYoW7IwN0p5B0y8Xwn6HXtQ8fleKOoCeWMYV+rF3QCQEGj1F6I8ekcd/nsBmrqfzfw==}
     cpu: [ia32]
     os: [linux]
 
-  '@dbmate/linux-x64@2.38.1':
-    resolution: {integrity: sha512-cAdmtTOQou2QqnJdwEiNDpspR/nfcBIPtAk+XaStayUrl/UbD+oxy33xPt/i7D6YCP9JayIi3mY6GPu/vSL/iA==}
+  '@dbmate/linux-x64@2.38.2':
+    resolution: {integrity: sha512-z7oFo2D3HaXpQM0O9qb8zUyOtX4RHZMBgg3vZyzLIwId9+MtkGBXaNeqiMCl1XvV+2svUtSR484HtbkTBUcDQg==}
     cpu: [x64]
     os: [linux]
 
-  '@dbmate/win32-x64@2.38.1':
-    resolution: {integrity: sha512-ffckode/IxMhPbefXb7Q4BNJpoe9D73kwXjW5EsacjC1W5Hx8P6Y0vX1F0NvJFC4Vm+ow05THp7xOmDf8Ovf3Q==}
+  '@dbmate/win32-x64@2.38.2':
+    resolution: {integrity: sha512-Qktcxv9/ZykQx/p3EXvdO6KAs5z6m9AeARAiITWODpglztRsyvmOvLSqOzBTJfon1Kve/2E/bwJt4aqhjaLdhw==}
     cpu: [x64]
     os: [win32]
 
@@ -1251,8 +1251,8 @@ packages:
       '@nestjs/core': ^12.0.0
       rxjs: ^7.1.0
 
-  '@nestjs/testing@12.5.1':
-    resolution: {integrity: sha512-k4cSasrAc1ur/Pgd4NJc7NxDYM0ZPc/XF7P670QddF/yWbX1XHqjnU4q51AK/zviwDXfCiyVzEJ87ZOh6rzboA==}
+  '@nestjs/testing@12.6.0':
+    resolution: {integrity: sha512-84whoYLvjORtUb/qD2QIYUsXHRUu654cmrbmzHFVrb38Vbox2wPQiQvu9LDtPdwEFiiMHUb5LIdWSolNvFa9ag==}
     peerDependencies:
       '@nestjs/common': ^12.0.0
       '@nestjs/core': ^12.0.0
@@ -1858,8 +1858,8 @@ packages:
   '@swc/types@0.1.28':
     resolution: {integrity: sha512-V6Mnml8v09QALx6K0elJ7o9K/MkVDtW3t6L+7Ou/JcWtb3xwId2AH4FeOceySd2JaO87IMw4+6vSZxLm34LPbw==}
 
-  '@testcontainers/postgresql@12.2.1':
-    resolution: {integrity: sha512-MIbI5KjZ9M4SY4+xzxg/w4ZLBeV+Jd6ognXoWn7dh/mhIhBbn7ss0MiZHNg2XbCbu03BW9YQ9+H9xW8PFkJWaA==}
+  '@testcontainers/postgresql@12.2.2':
+    resolution: {integrity: sha512-ePhFeUswU6aHJ1HETznfnVKuR0KYtGkMfqE1DTltgSt21WokXFby/I+c7g/fPXSE9sfxfE+GtyoUeohejpVcSA==}
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -1995,12 +1995,6 @@ packages:
   '@types/serve-static@2.2.0':
     resolution: {integrity: sha512-8mam4H1NHLtu7nmtalF7eyBH14QyOASmcxHhSfEoRyr0nP/YdoesEtU+uSRvMe96TW/HPTtkoKqQLl53N7UXMQ==}
 
-  '@types/ssh2-streams@0.1.13':
-    resolution: {integrity: sha512-faHyY3brO9oLEA0QlcO8N2wT7R0+1sHWZvQ+y3rMLwdY1ZyS1z0W3t65j9PqT4HmQ6ALzNe7RZlNuCNE0wBSWA==}
-
-  '@types/ssh2@0.5.52':
-    resolution: {integrity: sha512-lbLLlXxdCZOSJMCInKH2+9V/77ET2J6NPQHpFI0kda61Dd1KglJs+fPQBchizmzYSOJBgdTajhPqBO1xxLywvg==}
-
   '@types/ssh2@1.15.6':
     resolution: {integrity: sha512-oGdxhBqcRTwSTKFm+9EiKzkNVYRLEFkcW44lhguvBalGJbWfGnDt/ezwSUZc+SF9m9bMc3VyklNAtp7zICjS5w==}
 
@@ -2079,8 +2073,8 @@ packages:
     resolution: {integrity: sha512-k4lsFVpRZICbltkIEEH4hZRkwXkqDF1GHBpClKQOHQY+RkoZAAuyc1ci3I6p+CB6v3U4jaHIUshc4RzzQXZWLg==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@vitest/mocker@5.1.0':
-    resolution: {integrity: sha512-5umB9/jlWcqVS6fsrFmv5Gdnpu6wAUio/lEOwAmvB7v+lFo/IW2B9FhAD0p19GCULTgMzLCdUmuCDCnAzWgppQ==}
+  '@vitest/mocker@5.1.1':
+    resolution: {integrity: sha512-b2OgTB4+3ImWIVafXKazJXwLKwQxUNnix6b3xUvUTMh7RyXlrtzoxfZr8aEz9zkHOMAS4K5lu3TvFWoiVeVTQg==}
     peerDependencies:
       msw: ^2.4.9 || ^3.0.0
       vite: ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -2090,8 +2084,8 @@ packages:
       vite:
         optional: true
 
-  '@vitest/spy@5.1.0':
-    resolution: {integrity: sha512-2DPO5OMHWKrBngC+fCmTQqemNF0gidRhp3lxbBmRhW+M1XJrfgPpqNqWVevXtn2f2ufD5ZaR1B6B641aAlcX5A==}
+  '@vitest/spy@5.1.1':
+    resolution: {integrity: sha512-6K8C6alQG1/Yc8/ZI22iJS7JEsxPdVzqtqDq+/xM4Z0mGVykemMVjLhqMy/q6/IHYG3kKD8hKSwRen/ZdyI9vQ==}
 
   '@xhmikosr/archive-type@8.1.0':
     resolution: {integrity: sha512-EXOjEbnZFE5c/nFMf4FOrEURVanzHpnkPYmnmr78u02/8hAhE0FMq8p9TK1IM0/bFr5VcyBUY0gfLm8f7dKy+Q==}
@@ -2616,8 +2610,8 @@ packages:
   dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
 
-  dbmate@2.38.1:
-    resolution: {integrity: sha512-wBKWyHkE8BV1d1McXCkaKhP4aTHxi+jcejzcKYjned+tZVCrU65fytVC1S0DrNzV6E0X8z5mLhjRHQJj2F72ww==}
+  dbmate@2.38.2:
+    resolution: {integrity: sha512-HSyo+R4qqu469y1js65zxDooU8JBM5ii5oxxYnaKLBDzlrB8h5gZXzTt/T6R0kT47RCee7Y3PTcnAi+xietgEw==}
     hasBin: true
 
   debug@4.4.3:
@@ -4315,9 +4309,6 @@ packages:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
 
-  ssh-remote-port-forward@1.0.4:
-    resolution: {integrity: sha512-x0LV1eVDwjf1gmG7TTnfqIzf+3VPRz7vrNIjX6oYLbeCrf/PeVY6hkT68Mg+q02qXxQhrLjB0jfgvhevoCRmLQ==}
-
   ssh2@1.17.0:
     resolution: {integrity: sha512-wPldCk3asibAjQ/kziWQQt1Wh3PgDFpC0XpwclzKcdT1vql6KeYxf5LIt4nlFkUeR8WuphYMKqUA56X4rjbfgQ==}
     engines: {node: '>=10.16.0'}
@@ -4466,8 +4457,8 @@ packages:
   teex@1.0.1:
     resolution: {integrity: sha512-eYE6iEI62Ni1H8oIa7KlDU6uQBtqr4Eajni3wX7rpfXD8ysFx8z0+dri+KWEPWpBsxXfxu58x/0jvTVT1ekOSg==}
 
-  testcontainers@12.2.1:
-    resolution: {integrity: sha512-JfbCyOvLdzatwgqUI3AvYCwRW0P5mCkKQVBPO8U5qSH1efC2kHvnfWmi9VHloy1rAFG2MEqWZObRH4bq0gU1kQ==}
+  testcontainers@12.2.2:
+    resolution: {integrity: sha512-ndmRB+wQnCd7YkelXoUtLVUFUQ3CrbIPmldSWzY8p1pXy09lBC/Hm99RYRCL2brHve/xNWCJX35173peMj5LUg==}
     engines: {node: '>= 22.22'}
 
   text-decoder@1.2.7:
@@ -4737,20 +4728,20 @@ packages:
       yaml:
         optional: true
 
-  vitest@5.1.0:
-    resolution: {integrity: sha512-MzmNFnrwa8v8lF1bLxw3UJ4EREwVOVb75VqJZmUDRjJ6EluK/x9th7qTbaeDk41WxE1GxWqmTXcdsfobfH5sOA==}
+  vitest@5.1.1:
+    resolution: {integrity: sha512-trVmzUFOSraCZcI3uZIMD5FqBh4atFkC/XuJP/IU7qtyQay0FCs3Ia+0QiQ2JJwGyWG/xrcBoJNel2+O7kEZ0g==}
     engines: {node: ^22.12.0 || ^24.0.0 || >=26.0.0}
     hasBin: true
     peerDependencies:
       '@edge-runtime/vm': '*'
       '@opentelemetry/api': ^1.9.0
       '@types/node': ^22.0.0 || >=24.0.0
-      '@vitest/browser-playwright': 5.1.0
-      '@vitest/browser-preview': 5.1.0
+      '@vitest/browser-playwright': 5.1.1
+      '@vitest/browser-preview': 5.1.1
       '@vitest/browser-webdriverio': ^5.0.0-beta.5 || >=5.0.0
-      '@vitest/coverage-istanbul': 5.1.0
-      '@vitest/coverage-v8': 5.1.0
-      '@vitest/ui': 5.1.0
+      '@vitest/coverage-istanbul': 5.1.1
+      '@vitest/coverage-v8': 5.1.1
+      '@vitest/ui': 5.1.1
       happy-dom: '*'
       jsdom: '*'
       vite: ^6.4.0 || ^7.0.0 || ^8.0.0
@@ -5207,25 +5198,25 @@ snapshots:
 
   '@conventional-changelog/template@1.4.1': {}
 
-  '@dbmate/darwin-arm64@2.38.1':
+  '@dbmate/darwin-arm64@2.38.2':
     optional: true
 
-  '@dbmate/darwin-x64@2.38.1':
+  '@dbmate/darwin-x64@2.38.2':
     optional: true
 
-  '@dbmate/linux-arm64@2.38.1':
+  '@dbmate/linux-arm64@2.38.2':
     optional: true
 
-  '@dbmate/linux-arm@2.38.1':
+  '@dbmate/linux-arm@2.38.2':
     optional: true
 
-  '@dbmate/linux-ia32@2.38.1':
+  '@dbmate/linux-ia32@2.38.2':
     optional: true
 
-  '@dbmate/linux-x64@2.38.1':
+  '@dbmate/linux-x64@2.38.2':
     optional: true
 
-  '@dbmate/win32-x64@2.38.1':
+  '@dbmate/win32-x64@2.38.2':
     optional: true
 
   '@emnapi/core@2.0.0-beta.2':
@@ -5598,7 +5589,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nestjs/testing@12.5.1(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.5.1)(@nestjs/platform-express@12.5.1)':
+  '@nestjs/testing@12.6.0(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@12.5.1)(@nestjs/platform-express@12.5.1)':
     dependencies:
       '@nestjs/common': 12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
       '@nestjs/core': 12.5.1(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/platform-express@12.5.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -6282,9 +6273,9 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@testcontainers/postgresql@12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2)':
+  '@testcontainers/postgresql@12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)':
     dependencies:
-      testcontainers: 12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2)
+      testcontainers: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -6449,15 +6440,6 @@ snapshots:
       '@types/http-errors': 2.0.5
       '@types/node': 26.6.6
 
-  '@types/ssh2-streams@0.1.13':
-    dependencies:
-      '@types/node': 26.6.6
-
-  '@types/ssh2@0.5.52':
-    dependencies:
-      '@types/node': 26.6.6
-      '@types/ssh2-streams': 0.1.13
-
   '@types/ssh2@1.15.6':
     dependencies:
       '@types/node': 18.19.130
@@ -6576,16 +6558,16 @@ snapshots:
       '@typescript-eslint/types': 8.73.0
       eslint-visitor-keys: 5.0.1
 
-  '@vitest/mocker@5.1.0(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
+  '@vitest/mocker@5.1.1(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
-      '@vitest/spy': 5.1.0
+      '@vitest/spy': 5.1.1
       estree-walker: 3.0.3
       magic-string: 1.4.5
     optionalDependencies:
       vite: 8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)
 
-  '@vitest/spy@5.1.0': {}
+  '@vitest/spy@5.1.1': {}
 
   '@xhmikosr/archive-type@8.1.0(supports-color@10.2.2)':
     dependencies:
@@ -7157,15 +7139,15 @@ snapshots:
 
   dateformat@4.6.3: {}
 
-  dbmate@2.38.1:
+  dbmate@2.38.2:
     optionalDependencies:
-      '@dbmate/darwin-arm64': 2.38.1
-      '@dbmate/darwin-x64': 2.38.1
-      '@dbmate/linux-arm': 2.38.1
-      '@dbmate/linux-arm64': 2.38.1
-      '@dbmate/linux-ia32': 2.38.1
-      '@dbmate/linux-x64': 2.38.1
-      '@dbmate/win32-x64': 2.38.1
+      '@dbmate/darwin-arm64': 2.38.2
+      '@dbmate/darwin-x64': 2.38.2
+      '@dbmate/linux-arm': 2.38.2
+      '@dbmate/linux-arm64': 2.38.2
+      '@dbmate/linux-ia32': 2.38.2
+      '@dbmate/linux-x64': 2.38.2
+      '@dbmate/win32-x64': 2.38.2
 
   debug@4.4.3(supports-color@10.2.2):
     dependencies:
@@ -8289,7 +8271,7 @@ snapshots:
     dependencies:
       content-type: 2.1.0
 
-  next@16.4.6(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  next@16.4.6(@opentelemetry/api@1.10.0)(@playwright/test@1.65.1)(@types/node@26.6.6)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       '@next/env': 16.4.6
       '@swc/helpers': 0.5.23
@@ -8308,6 +8290,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 16.4.6
       '@next/swc-win32-arm64-msvc': 16.4.6
       '@next/swc-win32-x64-msvc': 16.4.6
+      '@opentelemetry/api': 1.10.0
       '@playwright/test': 1.65.1
       sharp: 0.35.5(@types/node@26.6.6)
     transitivePeerDependencies:
@@ -8998,11 +8981,6 @@ snapshots:
 
   split2@4.2.0: {}
 
-  ssh-remote-port-forward@1.0.4:
-    dependencies:
-      '@types/ssh2': 0.5.52
-      ssh2: 1.17.0
-
   ssh2@1.17.0:
     dependencies:
       asn1: 0.2.6
@@ -9204,7 +9182,7 @@ snapshots:
       - react-native-b4a
     optional: true
 
-  testcontainers@12.2.1(bare-buffer@3.7.3)(supports-color@10.2.2):
+  testcontainers@12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2):
     dependencies:
       '@balena/dockerignore': 1.0.2
       '@types/dockerode': 4.0.2
@@ -9217,7 +9195,7 @@ snapshots:
       get-port: 5.1.1
       proper-lockfile: 4.1.2
       properties-reader: 3.0.1(supports-color@10.2.2)
-      ssh-remote-port-forward: 1.0.4
+      ssh2: 1.17.0
       tar-fs: 3.1.3(bare-buffer@3.7.3)
       tmp: 0.2.7
       undici: 8.12.4
@@ -9447,10 +9425,10 @@ snapshots:
       jiti: 2.7.0
       yaml: 2.9.1
 
-  vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)):
+  vitest@5.1.1(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(jsdom@31.0.1(@noble/hashes@1.8.0))(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.1.0(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
+      '@vitest/mocker': 5.1.1(vite@8.3.8(@types/node@26.6.6)(jiti@2.7.0)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
